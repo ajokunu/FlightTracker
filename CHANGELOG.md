@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.1.0] - 2026-02-23
+### Added
+- Budget airline section in Disney Discord embeds ("Peasant Plane Options")
+- Spirit and Frontier flights now tracked and displayed separately below premium options
+- "Classy Plane Options" header for premium airline flights in Disney trip
+- DB helper functions for querying best budget vs non-budget flights per leg
+
+### Changed
+- Fetcher now stores all flights including budget airlines (previously excluded)
+- `excludeAirlines` config renamed to `budgetAirlines` (tag instead of filter)
+- Daily summary includes both classy and budget sections for Disney
+- Trip totals still based on classy options only
+
 ## [2.0.0] - 2026-02-23
 ### Added
 - Disney World Orlando trip tracking (BOS ↔ MCO, Mar 14–21 2026, 2 passengers)

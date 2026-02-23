@@ -82,7 +82,7 @@ export const FLIGHT_LEGS = [
     nonstopOnly: true,
     trip: 'disney',
     passengers: 2,
-    excludeAirlines: ['Spirit', 'Frontier'],
+    budgetAirlines: ['Spirit', 'Frontier'],
     preferDepartureTime: 'morning', // before 12:00 PM ET
   },
   {
@@ -95,7 +95,7 @@ export const FLIGHT_LEGS = [
     nonstopOnly: true,
     trip: 'disney',
     passengers: 2,
-    excludeAirlines: ['Spirit', 'Frontier'],
+    budgetAirlines: ['Spirit', 'Frontier'],
     preferDepartureTime: 'evening', // after 3:00 PM ET
   },
 ];

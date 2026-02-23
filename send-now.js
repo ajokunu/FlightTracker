@@ -16,8 +16,8 @@ function getBestForLeg(legId) {
   const cfg = FLIGHT_LEGS.find(f => f.id === legId);
   if (!cfg) return null;
   const stopsFilter = cfg.nonstopOnly ? 'AND stops = 0' : '';
-  const excludeFilter = cfg.excludeAirlines?.length
-    ? cfg.excludeAirlines.map(a => `AND airline NOT LIKE '%${a}%'`).join(' ')
+  const excludeFilter = cfg.budgetAirlines?.length
+    ? cfg.budgetAirlines.map(a => `AND airline NOT LIKE '%${a}%'`).join(' ')
     : '';
   return db.prepare(`
     SELECT leg_id, origin, destination, price, airline, stops, duration_minutes, departure_time, arrival_time
@@ -26,6 +26,37 @@ function getBestForLeg(legId) {
     ORDER BY timestamp DESC, price ASC
     LIMIT 1
   `).get(legId);
+}
+
+function getBestBudgetForLeg(legId) {
+  const cfg = FLIGHT_LEGS.find(f => f.id === legId);
+  if (!cfg || !cfg.budgetAirlines?.length) return null;
+  const stopsFilter = cfg.nonstopOnly ? 'AND stops = 0' : '';
+  const includeFilter = cfg.budgetAirlines.map(a => `airline LIKE '%${a}%'`).join(' OR ');
+  return db.prepare(`
+    SELECT leg_id, origin, destination, price, airline, stops, duration_minutes, departure_time, arrival_time
+    FROM price_snapshots
+    WHERE leg_id = ? ${stopsFilter} AND (${includeFilter})
+    ORDER BY timestamp DESC, price ASC
+    LIMIT 1
+  `).get(legId);
+}
+
+function buildFlightField(row, cfg) {
+  const h = Math.floor((row.duration_minutes || 0) / 60);
+  const m = (row.duration_minutes || 0) % 60;
+  const stopLabel = row.stops === 0 ? 'Nonstop' : `${row.stops} stop`;
+  const timeInfo = row.departure_time && row.arrival_time ? ` · ${row.departure_time} → ${row.arrival_time}` : '';
+  return {
+    name: `${cfg.emoji} ${cfg.label} — ${cfg.date}`,
+    value: [
+      `**$${(row.price / 100).toFixed(2)}** — ${row.airline || 'Unknown'}`,
+      `${stopLabel}` +
+        (row.duration_minutes ? ` · ${h}h ${m}m` : '') +
+        timeInfo,
+    ].join('\n'),
+    inline: false,
+  };
 }
 
 // Fresh poll
@@ -37,7 +68,9 @@ const embeds = [];
 
 for (const [tripId, trip] of Object.entries(TRIPS)) {
   const tripLegs = FLIGHT_LEGS.filter(l => l.trip === tripId);
+  const hasBudgetSection = tripLegs.some(l => l.budgetAirlines?.length);
   const results = [];
+  const budgetResults = [];
 
   for (const cfg of tripLegs) {
     const row = getBestForLeg(cfg.id);
@@ -49,25 +82,32 @@ for (const [tripId, trip] of Object.entries(TRIPS)) {
       console.log(`[${tripId}] ${cfg.label}: No flights found`);
       results.push(null);
     }
+
+    if (hasBudgetSection) {
+      const budgetRow = getBestBudgetForLeg(cfg.id);
+      if (budgetRow) {
+        budgetResults.push({ ...budgetRow, cfg });
+        console.log(`[${tripId}] ${cfg.label} (budget): ${budgetRow.airline} $${(budgetRow.price / 100).toFixed(2)}`);
+      }
+    }
   }
 
   const fields = [];
+
+  if (hasBudgetSection) {
+    fields.push({ name: '\u200b', value: '**✨ Classy Plane Options**', inline: false });
+  }
+
   for (const r of results) {
     if (!r) continue;
-    const h = Math.floor((r.duration_minutes || 0) / 60);
-    const m = (r.duration_minutes || 0) % 60;
-    const stopLabel = r.stops === 0 ? 'Nonstop' : `${r.stops} stop`;
-    const timeInfo = r.departure_time && r.arrival_time ? ` · ${r.departure_time} → ${r.arrival_time}` : '';
-    fields.push({
-      name: `${r.cfg.emoji} ${r.cfg.label} — ${r.cfg.date}`,
-      value: [
-        `**$${(r.price / 100).toFixed(2)}** — ${r.airline || 'Unknown'}`,
-        `${stopLabel}` +
-          (r.duration_minutes ? ` · ${h}h ${m}m` : '') +
-          timeInfo,
-      ].join('\n'),
-      inline: false,
-    });
+    fields.push(buildFlightField(r, r.cfg));
+  }
+
+  if (hasBudgetSection && budgetResults.length) {
+    fields.push({ name: '\u200b', value: '**💸 Peasant Plane Options**', inline: false });
+    for (const r of budgetResults) {
+      fields.push(buildFlightField(r, r.cfg));
+    }
   }
 
   const validPrices = results.filter(r => r);

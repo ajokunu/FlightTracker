@@ -68,12 +68,12 @@ async function fetchLeg(leg, originOverride) {
         if (!parsed || parsed.price === 0) continue;
         if (leg.nonstopOnly && parsed.stops !== 0) continue;
 
-        // Exclude specific airlines
-        if (leg.excludeAirlines?.length && parsed.airline) {
-          const excluded = leg.excludeAirlines.some(ex =>
-            parsed.airline.toLowerCase().includes(ex.toLowerCase())
+        // Tag budget airlines (stored but tracked separately)
+        let isBudget = false;
+        if (leg.budgetAirlines?.length && parsed.airline) {
+          isBudget = leg.budgetAirlines.some(ba =>
+            parsed.airline.toLowerCase().includes(ba.toLowerCase())
           );
-          if (excluded) continue;
         }
 
         // Filter by preferred departure time
@@ -100,17 +100,21 @@ async function fetchLeg(leg, originOverride) {
         };
 
         insertSnapshot(snapshot);
-        snapshots.push(snapshot);
+        snapshots.push({ ...snapshot, isBudget });
       }
 
-      logger.info(`${origin}→${leg.destination}: ${snapshots.length} flights found, cheapest $${snapshots.length ? (Math.min(...snapshots.map(s => s.price)) / 100).toFixed(2) : 'N/A'}`);
+      const classySnapshots = snapshots.filter(s => !s.isBudget);
+      const budgetSnapshots = snapshots.filter(s => s.isBudget);
+
+      logger.info(`${origin}→${leg.destination}: ${snapshots.length} flights found (${classySnapshots.length} classy, ${budgetSnapshots.length} budget), cheapest $${classySnapshots.length ? (Math.min(...classySnapshots.map(s => s.price)) / 100).toFixed(2) : 'N/A'}`);
 
       return {
         leg,
         origin,
         snapshots,
         insights,
-        cheapest: snapshots.length ? snapshots.reduce((a, b) => a.price < b.price ? a : b) : null,
+        cheapest: classySnapshots.length ? classySnapshots.reduce((a, b) => a.price < b.price ? a : b) : null,
+        cheapestBudget: budgetSnapshots.length ? budgetSnapshots.reduce((a, b) => a.price < b.price ? a : b) : null,
       };
     } catch (err) {
       const status = err.response?.status;
@@ -135,7 +139,7 @@ async function fetchLeg(leg, originOverride) {
           consecutiveFailures = 0;
         }
 
-        return { leg, origin, snapshots: [], insights: {}, cheapest: null, error: err.message };
+        return { leg, origin, snapshots: [], insights: {}, cheapest: null, cheapestBudget: null, error: err.message };
       }
     }
   }
@@ -154,7 +158,7 @@ export async function fetchAllLegs() {
       results.push(result);
     } catch (err) {
       logger.error(`Unexpected error fetching leg ${leg.id}: ${err.message}`);
-      results.push({ leg, origin: null, snapshots: [], insights: {}, cheapest: null, error: err.message });
+      results.push({ leg, origin: null, snapshots: [], insights: {}, cheapest: null, cheapestBudget: null, error: err.message });
     }
 
     // Stagger between legs

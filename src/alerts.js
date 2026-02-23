@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { DISCORD_WEBHOOK_URL, FLIGHT_LEGS, TRIPS, PRICE_DROP_ALERT_PCT, PRICE_SPIKE_ALERT_PCT, ALERT_COOLDOWN_HOURS } from './config.js';
-import { getAlltimeMinPrice, getPreviousBestPrice, getLastAlertTime, insertAlert, getBestPrices, getAlltimeBest } from './db.js';
+import { getAlltimeMinPrice, getPreviousBestPrice, getLastAlertTime, insertAlert, getBestPrices, getAlltimeBest, getBestForLegFiltered, getBestBudgetForLeg } from './db.js';
 import { logger } from './logger.js';
 
 const COLORS = {
@@ -51,6 +51,17 @@ async function sendWebhook(payload) {
   }
 }
 
+function buildLegField(legConfig, snapshot) {
+  return {
+    name: `${legConfig.emoji || ''} ${legConfig.label}`,
+    value: [
+      `**${formatPrice(snapshot.price)}** — ${snapshot.airline || 'Unknown'}`,
+      `${snapshot.stops === 0 ? 'Nonstop' : snapshot.stops + ' stop(s)'}${snapshot.duration_minutes ? ' · ' + formatDuration(snapshot.duration_minutes) : ''}`,
+    ].join('\n'),
+    inline: false,
+  };
+}
+
 function evaluateTripAlerts(tripId, tripResults) {
   const trip = TRIPS[tripId];
   if (!trip) return null;
@@ -67,9 +78,15 @@ function evaluateTripAlerts(tripId, tripResults) {
   }
   if (!anyChanged) return null;
 
+  const hasBudgetSection = tripResults.some(r => r.cheapestBudget);
+
   const legFields = [];
   const legEvents = [];
   let hasChanges = false;
+
+  if (hasBudgetSection) {
+    legFields.push({ name: '\u200b', value: '**✨ Classy Plane Options**', inline: false });
+  }
 
   for (const result of tripResults) {
     if (!result.cheapest) continue;
@@ -108,17 +125,22 @@ function evaluateTripAlerts(tripId, tripResults) {
       hasChanges = true;
     }
 
-    legFields.push({
-      name: `${legConfig.emoji || ''} ${legConfig.label}${indicator}`,
-      value: [
-        `**${formatPrice(currentPrice)}** — ${cheapest.airline || 'Unknown'}`,
-        `${cheapest.stops === 0 ? 'Nonstop' : cheapest.stops + ' stop(s)'}${cheapest.duration_minutes ? ' · ' + formatDuration(cheapest.duration_minutes) : ''}`,
-      ].join('\n'),
-      inline: false,
-    });
+    const field = buildLegField(legConfig, cheapest);
+    field.name += indicator;
+    legFields.push(field);
 
     if (event) {
       legEvents.push({ leg_id: leg.id, event, price: currentPrice, previousPrice });
+    }
+  }
+
+  // Add budget section if any budget flights exist
+  if (hasBudgetSection) {
+    legFields.push({ name: '\u200b', value: '**💸 Peasant Plane Options**', inline: false });
+    for (const result of tripResults) {
+      if (!result.cheapestBudget) continue;
+      const legConfig = FLIGHT_LEGS.find(l => l.id === result.leg.id) || {};
+      legFields.push(buildLegField(legConfig, result.cheapestBudget));
     }
   }
 
@@ -133,6 +155,7 @@ function evaluateTripAlerts(tripId, tripResults) {
   const cooldownKey = `trip-${tripId}`;
   if (cooldownActive(cooldownKey, topEvent)) return null;
 
+  // Total based on classy options only
   const total = tripResults.filter(r => r.cheapest).reduce((s, r) => s + r.cheapest.price, 0);
   const passengers = trip.passengers || 1;
 
@@ -210,29 +233,30 @@ export async function evaluateAlerts(results) {
 }
 
 export async function sendDailySummary() {
-  const best = getBestPrices();
   const alltime = getAlltimeBest();
-  if (!best.length) {
-    logger.info('No price data yet — skipping daily summary');
-    return;
-  }
-
   const embeds = [];
 
   for (const [tripId, trip] of Object.entries(TRIPS)) {
-    const tripLegIds = FLIGHT_LEGS.filter(l => l.trip === tripId).map(l => l.id);
-    const tripBest = best.filter(b => tripLegIds.includes(b.leg_id));
-    if (!tripBest.length) continue;
+    const tripLegs = FLIGHT_LEGS.filter(l => l.trip === tripId);
+    const hasBudgetSection = tripLegs.some(l => l.budgetAirlines?.length);
 
     const daysUntil = Math.ceil((new Date(trip.departureDate) - Date.now()) / (1000 * 60 * 60 * 24));
     const passengers = trip.passengers || 1;
 
     const fields = [];
-    for (const bp of tripBest) {
-      const legConfig = FLIGHT_LEGS.find(l => l.id === bp.leg_id);
+    const classyPrices = [];
+
+    if (hasBudgetSection) {
+      fields.push({ name: '\u200b', value: '**✨ Classy Plane Options**', inline: false });
+    }
+
+    for (const legConfig of tripLegs) {
+      const bp = getBestForLegFiltered(legConfig.id, legConfig.budgetAirlines);
+      if (!bp) continue;
+      classyPrices.push(bp.price);
       const at = alltime.find(a => a.leg_id === bp.leg_id);
       fields.push({
-        name: `${legConfig?.emoji || ''} ${legConfig?.label || bp.leg_id}`,
+        name: `${legConfig.emoji || ''} ${legConfig.label || bp.leg_id}`,
         value: [
           `**${formatPrice(bp.price)}** (${bp.airline || 'Unknown'})`,
           bp.stops !== null ? `${bp.stops === 0 ? 'Nonstop' : bp.stops + ' stop(s)'}` : '',
@@ -243,7 +267,31 @@ export async function sendDailySummary() {
       });
     }
 
-    const total = tripBest.reduce((s, b) => s + b.price, 0);
+    if (!classyPrices.length) continue;
+
+    // Add budget section
+    if (hasBudgetSection) {
+      const budgetFields = [];
+      for (const legConfig of tripLegs) {
+        const bp = getBestBudgetForLeg(legConfig.id, legConfig.budgetAirlines);
+        if (!bp) continue;
+        budgetFields.push({
+          name: `${legConfig.emoji || ''} ${legConfig.label || bp.leg_id}`,
+          value: [
+            `**${formatPrice(bp.price)}** (${bp.airline || 'Unknown'})`,
+            bp.stops !== null ? `${bp.stops === 0 ? 'Nonstop' : bp.stops + ' stop(s)'}` : '',
+            bp.duration_minutes ? formatDuration(bp.duration_minutes) : '',
+          ].filter(Boolean).join('\n'),
+          inline: false,
+        });
+      }
+      if (budgetFields.length) {
+        fields.push({ name: '\u200b', value: '**💸 Peasant Plane Options**', inline: false });
+        fields.push(...budgetFields);
+      }
+    }
+
+    const total = classyPrices.reduce((s, p) => s + p, 0);
     const priceText = passengers > 1
       ? `${formatPrice(total)} total (${passengers} pax · ${formatPrice(Math.round(total / passengers))}/person)`
       : formatPrice(total);

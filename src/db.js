@@ -182,6 +182,33 @@ export function getTripSummary() {
   return { best, alltime, totalCurrent, totalAlltime };
 }
 
+export function getBestForLegFiltered(legId, excludeAirlines) {
+  const excludeFilter = excludeAirlines?.length
+    ? excludeAirlines.map(a => `AND airline NOT LIKE '%${a}%'`).join(' ')
+    : '';
+  return getDb().prepare(`
+    SELECT leg_id, origin, destination, price, airline, stops, duration_minutes,
+           departure_time, arrival_time, timestamp
+    FROM price_snapshots
+    WHERE leg_id = ? ${excludeFilter}
+    ORDER BY timestamp DESC, price ASC
+    LIMIT 1
+  `).get(legId);
+}
+
+export function getBestBudgetForLeg(legId, budgetAirlines) {
+  if (!budgetAirlines?.length) return null;
+  const includeFilter = budgetAirlines.map(a => `airline LIKE '%${a}%'`).join(' OR ');
+  return getDb().prepare(`
+    SELECT leg_id, origin, destination, price, airline, stops, duration_minutes,
+           departure_time, arrival_time, timestamp
+    FROM price_snapshots
+    WHERE leg_id = ? AND (${includeFilter})
+    ORDER BY timestamp DESC, price ASC
+    LIMIT 1
+  `).get(legId);
+}
+
 export function getRecentAlerts(limit = 20) {
   return getDb().prepare(`
     SELECT * FROM price_alerts ORDER BY sent_at DESC LIMIT ?
