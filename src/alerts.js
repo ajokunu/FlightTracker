@@ -1,15 +1,18 @@
 import axios from 'axios';
-import { DISCORD_WEBHOOK_URL, FLIGHT_LEGS, PRICE_DROP_ALERT_PCT, PRICE_SPIKE_ALERT_PCT, ALERT_COOLDOWN_HOURS } from './config.js';
-import { getAlltimeMinPrice, getPreviousBestPrice, getLastAlertTime, insertAlert, getTripSummary } from './db.js';
+import { DISCORD_WEBHOOK_URL, FLIGHT_LEGS, TRIPS, PRICE_DROP_ALERT_PCT, PRICE_SPIKE_ALERT_PCT, ALERT_COOLDOWN_HOURS } from './config.js';
+import { getAlltimeMinPrice, getPreviousBestPrice, getLastAlertTime, insertAlert, getBestPrices, getAlltimeBest } from './db.js';
 import { logger } from './logger.js';
 
 const COLORS = {
-  alltime_low: 0xF39C12,    // Gold
-  price_drop: 0x2ECC71,     // Green
-  price_spike: 0xE74C3C,    // Red
-  below_typical: 0x9B59B6,  // Purple
-  daily_summary: 0x3498DB,  // Blue
+  alltime_low: 0xF39C12,
+  price_drop: 0x2ECC71,
+  price_spike: 0xE74C3C,
+  below_typical: 0x9B59B6,
+  daily_summary: 0x3498DB,
 };
+
+const TRIP_COLORS = { nz: 0x3498DB, disney: 0xE74C3C };
+const TRIP_ICONS = { nz: '✈️', disney: '🏰' };
 
 function formatPrice(cents) {
   if (!cents && cents !== 0) return 'N/A';
@@ -23,10 +26,9 @@ function formatDuration(minutes) {
   return `${h}h ${m}m`;
 }
 
-function multiCityUrl() {
-  const segments = FLIGHT_LEGS
-    .map(l => `${l.origins[0]}.${l.destination}.${l.date}`)
-    .join('*');
+function multiCityUrl(tripId) {
+  const legs = FLIGHT_LEGS.filter(l => l.trip === tripId);
+  const segments = legs.map(l => `${l.origins[0]}.${l.destination}.${l.date}`).join('*');
   return `https://www.google.com/flights#flt=${segments};c:USD;e:1;t:m`;
 }
 
@@ -49,88 +51,28 @@ async function sendWebhook(payload) {
   }
 }
 
-function buildEmbed({ leg, alertType, price, previousPrice, changePct, snapshot, tripTotal }) {
-  const legConfig = FLIGHT_LEGS.find(l => l.id === leg) || {};
-  const fields = [];
+function evaluateTripAlerts(tripId, tripResults) {
+  const trip = TRIPS[tripId];
+  if (!trip) return null;
 
-  fields.push({ name: 'Price', value: formatPrice(price), inline: true });
-
-  if (snapshot?.airline) {
-    fields.push({ name: 'Airline', value: snapshot.airline, inline: true });
-  }
-  if (snapshot?.stops !== undefined && snapshot?.stops !== null) {
-    fields.push({ name: 'Stops', value: snapshot.stops === 0 ? 'Nonstop' : `${snapshot.stops} stop${snapshot.stops > 1 ? 's' : ''}`, inline: true });
-  }
-  if (snapshot?.duration_minutes) {
-    fields.push({ name: 'Duration', value: formatDuration(snapshot.duration_minutes), inline: true });
-  }
-  if (snapshot?.departure_time && snapshot?.arrival_time) {
-    fields.push({ name: 'Times', value: `${snapshot.departure_time} → ${snapshot.arrival_time}`, inline: true });
-  }
-  if (previousPrice) {
-    fields.push({ name: 'Previous', value: formatPrice(previousPrice), inline: true });
-  }
-  if (changePct !== null && changePct !== undefined) {
-    const arrow = changePct < 0 ? '↓' : '↑';
-    fields.push({ name: 'Change', value: `${arrow} ${Math.abs(changePct).toFixed(1)}%`, inline: true });
-  }
-  if (snapshot?.price_level) {
-    fields.push({ name: 'Price Level', value: snapshot.price_level, inline: true });
-  }
-  if (snapshot?.typical_price_low && snapshot?.typical_price_high) {
-    fields.push({
-      name: 'Typical Range',
-      value: `${formatPrice(snapshot.typical_price_low)} – ${formatPrice(snapshot.typical_price_high)}`,
-      inline: true,
-    });
-  }
-
-  const titles = {
-    alltime_low: `${legConfig.emoji || ''} ALL-TIME LOW — ${legConfig.label}`,
-    price_drop: `${legConfig.emoji || ''} Price Drop — ${legConfig.label}`,
-    price_spike: `${legConfig.emoji || ''} Price Spike — ${legConfig.label}`,
-    below_typical: `${legConfig.emoji || ''} Below Typical — ${legConfig.label}`,
-  };
-
-  return {
-    embeds: [{
-      title: titles[alertType] || `${legConfig.label} Alert`,
-      color: COLORS[alertType],
-      fields,
-      footer: tripTotal ? { text: `Total trip estimate: ${formatPrice(tripTotal)}` } : undefined,
-      timestamp: new Date().toISOString(),
-    }],
-  };
-}
-
-export async function evaluateAlerts(results) {
-  const summary = getTripSummary();
-  const currentTotal = summary.totalCurrent;
-  const alltimeTotal = summary.totalAlltime;
-
-  // Check if any price actually changed from the previous poll
-  let anyPriceChanged = false;
-  for (const result of results) {
+  // Check if any price changed
+  let anyChanged = false;
+  for (const result of tripResults) {
     if (!result.cheapest) continue;
     const prev = getPreviousBestPrice(result.leg.id);
     if (!prev?.price || prev.price !== result.cheapest.price) {
-      anyPriceChanged = true;
+      anyChanged = true;
       break;
     }
   }
-  if (!anyPriceChanged) {
-    logger.info('No price changes detected — skipping Discord alert');
-    return;
-  }
+  if (!anyChanged) return null;
 
-  // Build per-leg breakdown fields
   const legFields = [];
-  const legEvents = []; // track what changed for the DB
+  const legEvents = [];
   let hasChanges = false;
 
-  for (const result of results) {
+  for (const result of tripResults) {
     if (!result.cheapest) continue;
-
     const { leg, cheapest } = result;
     const legConfig = FLIGHT_LEGS.find(l => l.id === leg.id) || {};
     const currentPrice = cheapest.price;
@@ -139,7 +81,6 @@ export async function evaluateAlerts(results) {
     const alltimeRow = getAlltimeMinPrice(leg.id);
     const alltimeMin = alltimeRow?.price || currentPrice;
 
-    // Determine what happened on this leg
     let indicator = '';
     let event = null;
     if (previousPrice && currentPrice < alltimeMin) {
@@ -181,94 +122,144 @@ export async function evaluateAlerts(results) {
     }
   }
 
-  if (!hasChanges || !legFields.length) return;
+  if (!hasChanges || !legFields.length) return null;
 
-  // Determine overall alert type (most significant event wins)
   const priority = ['alltime_low', 'price_drop', 'below_typical', 'price_spike'];
   let topEvent = 'price_drop';
   for (const p of priority) {
     if (legEvents.some(e => e.event === p)) { topEvent = p; break; }
   }
 
-  // Cooldown on trip-level alerts
-  if (cooldownActive('trip', topEvent)) return;
+  const cooldownKey = `trip-${tripId}`;
+  if (cooldownActive(cooldownKey, topEvent)) return null;
+
+  const total = tripResults.filter(r => r.cheapest).reduce((s, r) => s + r.cheapest.price, 0);
+  const passengers = trip.passengers || 1;
 
   const titles = {
-    alltime_low: '⭐ New All-Time Low Trip Price!',
-    price_drop: '📉 Trip Price Dropped',
-    price_spike: '📈 Trip Price Increased',
-    below_typical: '💎 Trip Price Below Typical',
+    alltime_low: `${TRIP_ICONS[tripId] || '✈️'} All-Time Low — ${trip.label}!`,
+    price_drop: `${TRIP_ICONS[tripId] || '✈️'} Price Drop — ${trip.label}`,
+    price_spike: `${TRIP_ICONS[tripId] || '✈️'} Price Increase — ${trip.label}`,
+    below_typical: `${TRIP_ICONS[tripId] || '✈️'} Below Typical — ${trip.label}`,
   };
 
-  const payload = {
-    embeds: [{
-      title: titles[topEvent] || 'Trip Price Update',
-      color: COLORS[topEvent],
-      description: `**Total: ${formatPrice(currentTotal)}**${alltimeTotal ? ` (all-time best: ${formatPrice(alltimeTotal)})` : ''}\n\n[📋 Book entire trip on Google Flights](${multiCityUrl()})`,
+  const perPerson = Math.round(total / passengers);
+  const priceDesc = passengers > 1
+    ? `**${formatPrice(total)} total** (${passengers} passengers · ${formatPrice(perPerson)}/person round trip)`
+    : `**Total: ${formatPrice(total)}**`;
+
+  return {
+    embed: {
+      title: titles[topEvent] || `${trip.label} Update`,
+      color: TRIP_COLORS[tripId] || COLORS[topEvent],
+      description: `${priceDesc}\n\n[📋 Book on Google Flights](${multiCityUrl(tripId)})`,
       fields: legFields,
+      footer: { text: trip.subtitle },
       timestamp: new Date().toISOString(),
-    }],
+    },
+    legEvents,
+    topEvent,
+    total,
+    cooldownKey,
   };
+}
 
-  await sendWebhook(payload);
+export async function evaluateAlerts(results) {
+  // Group results by trip
+  const byTrip = {};
+  for (const result of results) {
+    const tripId = result.leg.trip || 'nz';
+    if (!byTrip[tripId]) byTrip[tripId] = [];
+    byTrip[tripId].push(result);
+  }
 
-  // Record alerts for each leg event
+  const embeds = [];
+  const allEvents = [];
+
+  for (const [tripId, tripResults] of Object.entries(byTrip)) {
+    const evaluation = evaluateTripAlerts(tripId, tripResults);
+    if (!evaluation) continue;
+    embeds.push(evaluation.embed);
+    allEvents.push(evaluation);
+  }
+
+  if (!embeds.length) {
+    logger.info('No price changes detected — skipping Discord alert');
+    return;
+  }
+
+  await sendWebhook({ embeds });
+
+  // Record alerts
   const now = Math.floor(Date.now() / 1000);
-  for (const ev of legEvents) {
-    const changePct = ev.previousPrice ? ((ev.price - ev.previousPrice) / ev.previousPrice * 100) : null;
+  for (const ev of allEvents) {
+    for (const le of ev.legEvents) {
+      const changePct = le.previousPrice ? ((le.price - le.previousPrice) / le.previousPrice * 100) : null;
+      insertAlert({
+        leg_id: le.leg_id, alert_type: le.event, price: le.price,
+        previous_price: le.previousPrice, change_pct: changePct,
+        message: `${le.event}: ${formatPrice(le.price)}`, sent_at: now,
+      });
+    }
     insertAlert({
-      leg_id: ev.leg_id, alert_type: ev.event, price: ev.price,
-      previous_price: ev.previousPrice, change_pct: changePct,
-      message: `${ev.event}: ${formatPrice(ev.price)}`, sent_at: now,
+      leg_id: ev.cooldownKey, alert_type: ev.topEvent, price: ev.total,
+      previous_price: null, change_pct: null,
+      message: `Trip total: ${formatPrice(ev.total)}`, sent_at: now,
     });
   }
-  // Record trip-level cooldown
-  insertAlert({
-    leg_id: 'trip', alert_type: topEvent, price: currentTotal,
-    previous_price: null, change_pct: null,
-    message: `Trip total: ${formatPrice(currentTotal)}`, sent_at: now,
-  });
 }
 
 export async function sendDailySummary() {
-  const summary = getTripSummary();
-  if (!summary.best.length) {
+  const best = getBestPrices();
+  const alltime = getAlltimeBest();
+  if (!best.length) {
     logger.info('No price data yet — skipping daily summary');
     return;
   }
 
-  const departureDate = new Date('2026-05-01');
-  const daysUntil = Math.ceil((departureDate - Date.now()) / (1000 * 60 * 60 * 24));
+  const embeds = [];
 
-  const fields = [];
-  for (const bp of summary.best) {
-    const legConfig = FLIGHT_LEGS.find(l => l.id === bp.leg_id);
-    const alltime = summary.alltime.find(a => a.leg_id === bp.leg_id);
-    fields.push({
-      name: `${legConfig?.emoji || ''} ${legConfig?.label || bp.leg_id}`,
-      value: [
-        `**Current best**: ${formatPrice(bp.price)} (${bp.airline || 'Unknown'})`,
-        bp.stops !== null ? `${bp.stops === 0 ? 'Nonstop' : bp.stops + ' stop(s)'}` : '',
-        bp.duration_minutes ? formatDuration(bp.duration_minutes) : '',
-        alltime ? `All-time low: ${formatPrice(alltime.min_price)} | Avg: ${formatPrice(alltime.avg_price)}` : '',
-      ].filter(Boolean).join('\n'),
-      inline: false,
+  for (const [tripId, trip] of Object.entries(TRIPS)) {
+    const tripLegIds = FLIGHT_LEGS.filter(l => l.trip === tripId).map(l => l.id);
+    const tripBest = best.filter(b => tripLegIds.includes(b.leg_id));
+    if (!tripBest.length) continue;
+
+    const daysUntil = Math.ceil((new Date(trip.departureDate) - Date.now()) / (1000 * 60 * 60 * 24));
+    const passengers = trip.passengers || 1;
+
+    const fields = [];
+    for (const bp of tripBest) {
+      const legConfig = FLIGHT_LEGS.find(l => l.id === bp.leg_id);
+      const at = alltime.find(a => a.leg_id === bp.leg_id);
+      fields.push({
+        name: `${legConfig?.emoji || ''} ${legConfig?.label || bp.leg_id}`,
+        value: [
+          `**${formatPrice(bp.price)}** (${bp.airline || 'Unknown'})`,
+          bp.stops !== null ? `${bp.stops === 0 ? 'Nonstop' : bp.stops + ' stop(s)'}` : '',
+          bp.duration_minutes ? formatDuration(bp.duration_minutes) : '',
+          at ? `All-time low: ${formatPrice(at.min_price)}` : '',
+        ].filter(Boolean).join('\n'),
+        inline: false,
+      });
+    }
+
+    const total = tripBest.reduce((s, b) => s + b.price, 0);
+    const priceText = passengers > 1
+      ? `${formatPrice(total)} total (${passengers} pax · ${formatPrice(Math.round(total / passengers))}/person)`
+      : formatPrice(total);
+
+    embeds.push({
+      title: `${TRIP_ICONS[tripId] || '✈️'} ${trip.label} — ${daysUntil} days out`,
+      color: TRIP_COLORS[tripId] || COLORS.daily_summary,
+      description: `[📋 Book on Google Flights](${multiCityUrl(tripId)})`,
+      fields,
+      footer: { text: `${trip.subtitle} | Trip total: ${priceText}` },
+      timestamp: new Date().toISOString(),
     });
   }
 
-  const payload = {
-    embeds: [{
-      title: `Daily Flight Summary — ${daysUntil} days until departure`,
-      color: COLORS.daily_summary,
-      description: `[📋 Book entire trip on Google Flights](${multiCityUrl()})`,
-      fields,
-      footer: {
-        text: `Total trip: ${formatPrice(summary.totalCurrent)} | All-time best total: ${formatPrice(summary.totalAlltime)}`,
-      },
-      timestamp: new Date().toISOString(),
-    }],
-  };
-
-  await sendWebhook(payload);
-  logger.info('Daily summary sent');
+  if (embeds.length) {
+    await sendWebhook({ embeds });
+    logger.info('Daily summary sent');
+  }
 }

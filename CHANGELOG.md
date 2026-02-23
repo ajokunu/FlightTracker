@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.0.0] - 2026-02-23
+### Added
+- Disney World Orlando trip tracking (BOS ↔ MCO, Mar 14–21 2026, 2 passengers)
+- Per-trip configuration: passengers, airline exclusions, departure time preferences
+- Separate Discord embeds per trip (NZ and Disney independent)
+- Per-trip booking links and price totals
+- Spirit/Frontier airline exclusion filter for Disney flights
+- Morning/evening departure time preference filtering
+
+### Changed
+- Alerts system rewritten for multi-trip support with per-trip cooldowns
+- SerpAPI now passes per-leg passenger count (adults=N)
+- Price totals correctly reflect SerpAPI's all-passenger pricing (no double-counting)
+- Daily summary now generates separate embeds per trip with days-until-departure
+
 ## [1.0.0] - 2026-02-22
 ### Added
 - Initial release of Flight Price Tracker

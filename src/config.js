@@ -8,7 +8,25 @@ export const PRICE_DROP_ALERT_PCT = parseFloat(process.env.PRICE_DROP_ALERT_PCT 
 export const PRICE_SPIKE_ALERT_PCT = parseFloat(process.env.PRICE_SPIKE_ALERT_PCT || '10');
 export const ALERT_COOLDOWN_HOURS = parseFloat(process.env.ALERT_COOLDOWN_HOURS || '2');
 
+export const TRIPS = {
+  nz: {
+    id: 'nz',
+    label: 'New Zealand & Australia',
+    subtitle: 'NYC → Auckland → Wellington → Sydney → Melbourne → Boston | May 2026',
+    passengers: 1,
+    departureDate: '2026-05-01',
+  },
+  disney: {
+    id: 'disney',
+    label: 'Disney World Orlando',
+    subtitle: 'Boston → Orlando → Boston | Mar 14–21 2026',
+    passengers: 2,
+    departureDate: '2026-03-14',
+  },
+};
+
 export const FLIGHT_LEGS = [
+  // === New Zealand trip ===
   {
     id: 'nyc-akl',
     label: 'New York → Auckland',
@@ -17,6 +35,8 @@ export const FLIGHT_LEGS = [
     destination: 'AKL',
     date: '2026-05-01',
     nonstopOnly: true,
+    trip: 'nz',
+    passengers: 1,
   },
   {
     id: 'wlg-syd',
@@ -26,6 +46,8 @@ export const FLIGHT_LEGS = [
     destination: 'SYD',
     date: '2026-05-08',
     nonstopOnly: true,
+    trip: 'nz',
+    passengers: 1,
   },
   {
     id: 'syd-mel',
@@ -35,6 +57,8 @@ export const FLIGHT_LEGS = [
     destination: 'MEL',
     date: '2026-05-13',
     nonstopOnly: true,
+    trip: 'nz',
+    passengers: 1,
   },
   {
     id: 'mel-bos',
@@ -43,7 +67,36 @@ export const FLIGHT_LEGS = [
     origins: ['MEL'],
     destination: 'BOS',
     date: '2026-05-16',
-    nonstopOnly: false, // no nonstop service exists
+    nonstopOnly: false,
+    trip: 'nz',
+    passengers: 1,
+  },
+  // === Disney trip ===
+  {
+    id: 'bos-mco-out',
+    label: 'Boston → Orlando',
+    emoji: '🏰✈️🌴',
+    origins: ['BOS'],
+    destination: 'MCO',
+    date: '2026-03-14',
+    nonstopOnly: true,
+    trip: 'disney',
+    passengers: 2,
+    excludeAirlines: ['Spirit', 'Frontier'],
+    preferDepartureTime: 'morning', // before 12:00 PM ET
+  },
+  {
+    id: 'mco-bos-ret',
+    label: 'Orlando → Boston',
+    emoji: '🌴✈️🏰',
+    origins: ['MCO'],
+    destination: 'BOS',
+    date: '2026-03-21',
+    nonstopOnly: true,
+    trip: 'disney',
+    passengers: 2,
+    excludeAirlines: ['Spirit', 'Frontier'],
+    preferDepartureTime: 'evening', // after 3:00 PM ET
   },
 ];
 

@@ -42,7 +42,7 @@ async function fetchLeg(leg, originOverride) {
     outbound_date: leg.date,
     type: 2, // one-way
     currency: 'USD',
-    adults: 1,
+    adults: leg.passengers || 1,
     sort_by: 2, // price
     hl: 'en',
     ...(leg.nonstopOnly ? { stops: 0 } : {}),
@@ -66,7 +66,25 @@ async function fetchLeg(leg, originOverride) {
       for (const flight of allFlights) {
         const parsed = parseFlight(flight);
         if (!parsed || parsed.price === 0) continue;
-        if (leg.nonstopOnly && parsed.stops !== 0) continue; // nonstop only where applicable
+        if (leg.nonstopOnly && parsed.stops !== 0) continue;
+
+        // Exclude specific airlines
+        if (leg.excludeAirlines?.length && parsed.airline) {
+          const excluded = leg.excludeAirlines.some(ex =>
+            parsed.airline.toLowerCase().includes(ex.toLowerCase())
+          );
+          if (excluded) continue;
+        }
+
+        // Filter by preferred departure time
+        if (leg.preferDepartureTime && parsed.departure_time) {
+          const timeMatch = parsed.departure_time.match(/(\d{2}):(\d{2})/);
+          if (timeMatch) {
+            const hour = parseInt(timeMatch[1], 10);
+            if (leg.preferDepartureTime === 'morning' && hour >= 12) continue;
+            if (leg.preferDepartureTime === 'evening' && hour < 15) continue;
+          }
+        }
 
         const snapshot = {
           leg_id: leg.id,
