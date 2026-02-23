@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flight Price Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a; color: #e2e8f0; padding: 20px;
+    }
+    h1 { text-align: center; margin-bottom: 8px; font-size: 1.8rem; }
+    .subtitle { text-align: center; color: #94a3b8; margin-bottom: 24px; font-size: 0.9rem; }
+    .trip-total {
+      background: linear-gradient(135deg, #1e3a5f, #1e293b);
+      border: 1px solid #334155; border-radius: 12px; padding: 24px;
+      text-align: center; margin-bottom: 24px;
+    }
+    .trip-total .amount { font-size: 2.5rem; font-weight: 700; color: #38bdf8; }
+    .trip-total .alltime { color: #94a3b8; margin-top: 4px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .card {
+      background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px;
+    }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .card-header h3 { font-size: 1rem; }
+    .card .price { font-size: 1.8rem; font-weight: 700; color: #34d399; }
+    .card .meta { color: #94a3b8; font-size: 0.85rem; margin-top: 8px; line-height: 1.6; }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 0.75rem; font-weight: 600;
+    }
+    .badge-low { background: #065f46; color: #6ee7b7; }
+    .badge-typical { background: #1e3a5f; color: #93c5fd; }
+    .badge-high { background: #7f1d1d; color: #fca5a5; }
+    .chart-section {
+      background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; margin-bottom: 24px;
+    }
+    .chart-controls { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .chart-controls button {
+      background: #334155; color: #e2e8f0; border: none; padding: 6px 14px;
+      border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+    }
+    .chart-controls button.active { background: #3b82f6; color: #fff; }
+    .chart-controls button:hover { background: #475569; }
+    .chart-controls button.active:hover { background: #2563eb; }
+    canvas { max-height: 400px; }
+    .alerts-section {
+      background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px;
+    }
+    .alerts-section h2 { margin-bottom: 12px; font-size: 1.2rem; }
+    .alert-item {
+      padding: 10px 0; border-bottom: 1px solid #334155; font-size: 0.85rem;
+    }
+    .alert-item:last-child { border-bottom: none; }
+    .alert-time { color: #64748b; font-size: 0.75rem; }
+    .alert-type { font-weight: 600; margin-right: 8px; }
+    .type-alltime_low { color: #f59e0b; }
+    .type-price_drop { color: #34d399; }
+    .type-price_spike { color: #f87171; }
+    .type-below_typical { color: #a78bfa; }
+    .type-daily_summary { color: #60a5fa; }
+    .refresh-note { text-align: center; color: #475569; font-size: 0.75rem; margin-top: 16px; }
+    .no-data { color: #64748b; text-align: center; padding: 40px; }
+  </style>
+</head>
+<body>
+  <h1>Flight Price Tracker</h1>
+  <p class="subtitle">NYC → Auckland → Wellington → Sydney → Melbourne → Boston | May 2026</p>
+
+  <div class="trip-total">
+    <div>Total Trip Estimate</div>
+    <div class="amount" id="trip-total">—</div>
+    <div class="alltime" id="trip-alltime"></div>
+  </div>
+
+  <div class="grid" id="leg-cards"></div>
+
+  <div class="chart-section">
+    <h2>Price History</h2>
+    <div class="chart-controls">
+      <button data-range="24h">24h</button>
+      <button data-range="3d">3d</button>
+      <button data-range="7d" class="active">7d</button>
+      <button data-range="30d">30d</button>
+    </div>
+    <canvas id="priceChart"></canvas>
+  </div>
+
+  <div class="alerts-section">
+    <h2>Recent Alerts</h2>
+    <div id="alerts-list"><div class="no-data">No alerts yet</div></div>
+  </div>
+
+  <div class="refresh-note">Auto-refreshes every 60 seconds</div>
+
+  <script>
+    const LEGS = [
+      { id: 'nyc-akl', label: 'NYC → AKL', color: '#38bdf8' },
+      { id: 'wlg-syd', label: 'WLG → SYD', color: '#34d399' },
+      { id: 'syd-mel', label: 'SYD → MEL', color: '#a78bfa' },
+      { id: 'mel-bos', label: 'MEL → BOS', color: '#fb923c' },
+    ];
+
+    let chart = null;
+    let currentRange = '7d';
+
+    function fmt(cents) {
+      if (!cents && cents !== 0) return '—';
+      return '$' + (cents / 100).toFixed(2);
+    }
+
+    function fmtDuration(min) {
+      if (!min) return '';
+      return Math.floor(min / 60) + 'h ' + (min % 60) + 'm';
+    }
+
+    function timeAgo(unix) {
+      const diff = Math.floor(Date.now() / 1000) - unix;
+      if (diff < 60) return 'just now';
+      if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+      return Math.floor(diff / 86400) + 'd ago';
+    }
+
+    function priceLevelBadge(level) {
+      if (!level) return '';
+      const cls = level === 'low' ? 'badge-low' : level === 'high' ? 'badge-high' : 'badge-typical';
+      return `<span class="badge ${cls}">${level}</span>`;
+    }
+
+    async function fetchJSON(url) {
+      const res = await fetch(url);
+      return res.json();
+    }
+
+    async function loadSummary() {
+      try {
+        const data = await fetchJSON('/api/summary');
+        document.getElementById('trip-total').textContent = fmt(data.totalCurrent);
+        if (data.totalAlltime) {
+          document.getElementById('trip-alltime').textContent =
+            `All-time best total: ${fmt(data.totalAlltime)}`;
+        }
+      } catch {
+        document.getElementById('trip-total').textContent = '—';
+      }
+    }
+
+    async function loadCards() {
+      try {
+        const prices = await fetchJSON('/api/prices');
+        const container = document.getElementById('leg-cards');
+        if (!prices.length) {
+          container.innerHTML = '<div class="no-data">Waiting for first price data...</div>';
+          return;
+        }
+
+        container.innerHTML = prices.map(p => {
+          const leg = LEGS.find(l => l.id === p.leg_id) || {};
+          return `
+            <div class="card">
+              <div class="card-header">
+                <h3>${leg.label || p.leg_id}</h3>
+                ${priceLevelBadge(p.price_level)}
+              </div>
+              <div class="price">${fmt(p.price)}</div>
+              <div class="meta">
+                ${p.airline || 'Unknown airline'}<br>
+                ${p.stops === 0 ? 'Nonstop' : (p.stops || '?') + ' stop(s)'}
+                ${p.duration_minutes ? ' · ' + fmtDuration(p.duration_minutes) : ''}<br>
+                ${p.departure_time && p.arrival_time ? p.departure_time + ' → ' + p.arrival_time : ''}
+                ${p.typical_price_low && p.typical_price_high ? '<br>Typical: ' + fmt(p.typical_price_low) + ' – ' + fmt(p.typical_price_high) : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch {
+        document.getElementById('leg-cards').innerHTML = '<div class="no-data">Error loading prices</div>';
+      }
+    }
+
+    async function loadChart(range) {
+      currentRange = range;
+      document.querySelectorAll('.chart-controls button').forEach(b => {
+        b.classList.toggle('active', b.dataset.range === range);
+      });
+
+      const datasets = [];
+      for (const leg of LEGS) {
+        try {
+          const history = await fetchJSON(`/api/history/${leg.id}?range=${range}`);
+          if (!history.length) continue;
+
+          // Group by timestamp, take min price per timestamp
+          const byTs = {};
+          for (const h of history) {
+            if (!byTs[h.timestamp] || h.price < byTs[h.timestamp].price) {
+              byTs[h.timestamp] = h;
+            }
+          }
+          const points = Object.values(byTs).sort((a, b) => a.timestamp - b.timestamp);
+
+          datasets.push({
+            label: leg.label,
+            data: points.map(p => ({ x: new Date(p.timestamp * 1000), y: p.price / 100 })),
+            borderColor: leg.color,
+            backgroundColor: leg.color + '20',
+            borderWidth: 2,
+            pointRadius: 3,
+            tension: 0.3,
+          });
+        } catch { /* skip */ }
+      }
+
+      const ctx = document.getElementById('priceChart').getContext('2d');
+      if (chart) chart.destroy();
+
+      if (!datasets.length) {
+        chart = null;
+        return;
+      }
+
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: {
+              type: 'time',
+              time: { tooltipFormat: 'MMM d, h:mm a' },
+              grid: { color: '#334155' },
+              ticks: { color: '#94a3b8' },
+            },
+            y: {
+              title: { display: true, text: 'Price (USD)', color: '#94a3b8' },
+              grid: { color: '#334155' },
+              ticks: { color: '#94a3b8', callback: v => '$' + v },
+            },
+          },
+          plugins: {
+            legend: { labels: { color: '#e2e8f0' } },
+            tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': $' + ctx.parsed.y.toFixed(2) } },
+          },
+        },
+      });
+    }
+
+    async function loadAlerts() {
+      try {
+        const alerts = await fetchJSON('/api/alerts');
+        const container = document.getElementById('alerts-list');
+        if (!alerts.length) {
+          container.innerHTML = '<div class="no-data">No alerts yet</div>';
+          return;
+        }
+        container.innerHTML = alerts.map(a => `
+          <div class="alert-item">
+            <span class="alert-type type-${a.alert_type}">${a.alert_type.replace(/_/g, ' ')}</span>
+            ${a.message || ''}
+            <div class="alert-time">${a.leg_id} · ${timeAgo(a.sent_at)}</div>
+          </div>
+        `).join('');
+      } catch {
+        document.getElementById('alerts-list').innerHTML = '<div class="no-data">Error loading alerts</div>';
+      }
+    }
+
+    async function refresh() {
+      await Promise.all([loadSummary(), loadCards(), loadChart(currentRange), loadAlerts()]);
+    }
+
+    // Chart range buttons
+    document.querySelectorAll('.chart-controls button').forEach(btn => {
+      btn.addEventListener('click', () => loadChart(btn.dataset.range));
+    });
+
+    // Initial load + auto-refresh
+    refresh();
+    setInterval(refresh, 60000);
+
+    // Need Chart.js date adapter for time scale
+    const adapterScript = document.createElement('script');
+    adapterScript.src = 'https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3';
+    document.head.appendChild(adapterScript);
+  </script>
+</body>
+</html>
