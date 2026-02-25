@@ -16,13 +16,6 @@ export const TRIPS = {
     passengers: 1,
     departureDate: '2026-05-01',
   },
-  disney: {
-    id: 'disney',
-    label: 'Disney World Orlando',
-    subtitle: 'Boston → Orlando → Boston | Mar 14–21 2026',
-    passengers: 2,
-    departureDate: '2026-03-14',
-  },
 };
 
 export const FLIGHT_LEGS = [
@@ -70,33 +63,6 @@ export const FLIGHT_LEGS = [
     nonstopOnly: false,
     trip: 'nz',
     passengers: 1,
-  },
-  // === Disney trip ===
-  {
-    id: 'bos-mco-out',
-    label: 'Boston → Orlando',
-    emoji: '🏰✈️🌴',
-    origins: ['BOS'],
-    destination: 'MCO',
-    date: '2026-03-14',
-    nonstopOnly: true,
-    trip: 'disney',
-    passengers: 2,
-    budgetAirlines: ['Spirit', 'Frontier'],
-    preferDepartureTime: 'morning', // before 12:00 PM ET
-  },
-  {
-    id: 'mco-bos-ret',
-    label: 'Orlando → Boston',
-    emoji: '🌴✈️🏰',
-    origins: ['MCO'],
-    destination: 'BOS',
-    date: '2026-03-21',
-    nonstopOnly: true,
-    trip: 'disney',
-    passengers: 2,
-    budgetAirlines: ['Spirit', 'Frontier'],
-    preferDepartureTime: 'evening', // after 3:00 PM ET
   },
 ];
 

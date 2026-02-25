@@ -16,6 +16,7 @@ function parseFlight(flight) {
   const legs = flight.flights || [];
   const airlines = [...new Set(legs.map(l => l.airline).filter(Boolean))];
   const flightNumbers = legs.map(l => `${l.airline} ${l.flight_number}`).filter(Boolean);
+  const aircraftTypes = legs.map(l => l.airplane).filter(Boolean);
   const firstLeg = legs[0] || {};
   const lastLeg = legs[legs.length - 1] || {};
 
@@ -28,6 +29,9 @@ function parseFlight(flight) {
     arrival_time: lastLeg.arrival_airport?.time || null,
     flight_numbers: flightNumbers.join(', ') || null,
     booking_token: flight.booking_token || null,
+    aircraft_type: aircraftTypes.join(', ') || null,
+    departure_airport_name: firstLeg.departure_airport?.name || null,
+    arrival_airport_name: lastLeg.arrival_airport?.name || null,
   };
 }
 

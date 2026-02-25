@@ -20,7 +20,8 @@ function getBestForLeg(legId) {
     ? cfg.budgetAirlines.map(a => `AND airline NOT LIKE '%${a}%'`).join(' ')
     : '';
   return db.prepare(`
-    SELECT leg_id, origin, destination, price, airline, stops, duration_minutes, departure_time, arrival_time
+    SELECT leg_id, origin, destination, price, airline, stops, duration_minutes,
+           departure_time, arrival_time, aircraft_type, departure_airport_name, arrival_airport_name
     FROM price_snapshots
     WHERE leg_id = ? ${stopsFilter} ${excludeFilter}
     ORDER BY timestamp DESC, price ASC
@@ -34,7 +35,8 @@ function getBestBudgetForLeg(legId) {
   const stopsFilter = cfg.nonstopOnly ? 'AND stops = 0' : '';
   const includeFilter = cfg.budgetAirlines.map(a => `airline LIKE '%${a}%'`).join(' OR ');
   return db.prepare(`
-    SELECT leg_id, origin, destination, price, airline, stops, duration_minutes, departure_time, arrival_time
+    SELECT leg_id, origin, destination, price, airline, stops, duration_minutes,
+           departure_time, arrival_time, aircraft_type, departure_airport_name, arrival_airport_name
     FROM price_snapshots
     WHERE leg_id = ? ${stopsFilter} AND (${includeFilter})
     ORDER BY timestamp DESC, price ASC
@@ -46,15 +48,21 @@ function buildFlightField(row, cfg) {
   const h = Math.floor((row.duration_minutes || 0) / 60);
   const m = (row.duration_minutes || 0) % 60;
   const stopLabel = row.stops === 0 ? 'Nonstop' : `${row.stops} stop`;
-  const timeInfo = row.departure_time && row.arrival_time ? ` · ${row.departure_time} → ${row.arrival_time}` : '';
+  const timeStr = row.departure_time && row.arrival_time
+    ? `${row.departure_time} → ${row.arrival_time}`
+    : '';
+  const airports = row.departure_airport_name && row.arrival_airport_name
+    ? ` (${row.departure_airport_name} → ${row.arrival_airport_name})`
+    : '';
   return {
     name: `${cfg.emoji} ${cfg.label} — ${cfg.date}`,
     value: [
       `**$${(row.price / 100).toFixed(2)}** — ${row.airline || 'Unknown'}`,
       `${stopLabel}` +
-        (row.duration_minutes ? ` · ${h}h ${m}m` : '') +
-        timeInfo,
-    ].join('\n'),
+        (row.duration_minutes ? ` · ${h}h ${m}m` : ''),
+      timeStr ? `${timeStr}${airports}` : null,
+      row.aircraft_type ? `Aircraft: ${row.aircraft_type}` : null,
+    ].filter(Boolean).join('\n'),
     inline: false,
   };
 }
@@ -131,10 +139,9 @@ for (const [tripId, trip] of Object.entries(TRIPS)) {
         `[📋 Book entire trip on Google Flights](${bookUrl})`,
       ].join('\n');
 
-  const colors = { nz: 0x3498DB, disney: 0xE74C3C };
+  const colors = { nz: 0x3498DB };
   const titles = {
     nz: '✈️ New Zealand Trip Update',
-    disney: '🏰 Disney World Trip Update',
   };
 
   embeds.push({

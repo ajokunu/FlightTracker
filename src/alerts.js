@@ -11,8 +11,8 @@ const COLORS = {
   daily_summary: 0x3498DB,
 };
 
-const TRIP_COLORS = { nz: 0x3498DB, disney: 0xE74C3C };
-const TRIP_ICONS = { nz: '✈️', disney: '🏰' };
+const TRIP_COLORS = { nz: 0x3498DB };
+const TRIP_ICONS = { nz: '✈️' };
 
 function formatPrice(cents) {
   if (!cents && cents !== 0) return 'N/A';
@@ -52,12 +52,21 @@ async function sendWebhook(payload) {
 }
 
 function buildLegField(legConfig, snapshot) {
+  const timeStr = snapshot.departure_time && snapshot.arrival_time
+    ? `${snapshot.departure_time} → ${snapshot.arrival_time}`
+    : '';
+  const airports = snapshot.departure_airport_name && snapshot.arrival_airport_name
+    ? ` (${snapshot.departure_airport_name} → ${snapshot.arrival_airport_name})`
+    : '';
+
   return {
     name: `${legConfig.emoji || ''} ${legConfig.label}`,
     value: [
       `**${formatPrice(snapshot.price)}** — ${snapshot.airline || 'Unknown'}`,
       `${snapshot.stops === 0 ? 'Nonstop' : snapshot.stops + ' stop(s)'}${snapshot.duration_minutes ? ' · ' + formatDuration(snapshot.duration_minutes) : ''}`,
-    ].join('\n'),
+      timeStr ? `${timeStr}${airports}` : null,
+      snapshot.aircraft_type ? `Aircraft: ${snapshot.aircraft_type}` : null,
+    ].filter(Boolean).join('\n'),
     inline: false,
   };
 }
@@ -255,12 +264,20 @@ export async function sendDailySummary() {
       if (!bp) continue;
       classyPrices.push(bp.price);
       const at = alltime.find(a => a.leg_id === bp.leg_id);
+      const timeStr = bp.departure_time && bp.arrival_time
+        ? `${bp.departure_time} → ${bp.arrival_time}`
+        : '';
+      const airports = bp.departure_airport_name && bp.arrival_airport_name
+        ? ` (${bp.departure_airport_name} → ${bp.arrival_airport_name})`
+        : '';
       fields.push({
         name: `${legConfig.emoji || ''} ${legConfig.label || bp.leg_id}`,
         value: [
           `**${formatPrice(bp.price)}** (${bp.airline || 'Unknown'})`,
           bp.stops !== null ? `${bp.stops === 0 ? 'Nonstop' : bp.stops + ' stop(s)'}` : '',
           bp.duration_minutes ? formatDuration(bp.duration_minutes) : '',
+          timeStr ? `${timeStr}${airports}` : null,
+          bp.aircraft_type ? `Aircraft: ${bp.aircraft_type}` : null,
           at ? `All-time low: ${formatPrice(at.min_price)}` : '',
         ].filter(Boolean).join('\n'),
         inline: false,

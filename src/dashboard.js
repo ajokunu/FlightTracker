@@ -3,7 +3,10 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getBestPrices, getAlltimeBest, getPriceHistory, getDailyTrends, getRecentAlerts, getTripSummary } from './db.js';
+import { FLIGHT_LEGS } from './config.js';
 import { logger } from './logger.js';
+
+const ACTIVE_LEG_IDS = FLIGHT_LEGS.map(l => l.id);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -14,7 +17,7 @@ export function startDashboard(port) {
 
   app.get('/api/prices', (req, res) => {
     try {
-      res.json(getBestPrices());
+      res.json(getBestPrices().filter(p => ACTIVE_LEG_IDS.includes(p.leg_id)));
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -34,7 +37,7 @@ export function startDashboard(port) {
 
   app.get('/api/summary', (req, res) => {
     try {
-      res.json(getTripSummary());
+      res.json(getTripSummary(ACTIVE_LEG_IDS));
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

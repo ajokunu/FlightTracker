@@ -160,6 +160,10 @@
 
         container.innerHTML = prices.map(p => {
           const leg = LEGS.find(l => l.id === p.leg_id) || {};
+          const timeStr = p.departure_time && p.arrival_time
+            ? p.departure_time + ' → ' + p.arrival_time : '';
+          const airports = p.departure_airport_name && p.arrival_airport_name
+            ? p.departure_airport_name + ' → ' + p.arrival_airport_name : '';
           return `
             <div class="card">
               <div class="card-header">
@@ -171,8 +175,10 @@
                 ${p.airline || 'Unknown airline'}<br>
                 ${p.stops === 0 ? 'Nonstop' : (p.stops || '?') + ' stop(s)'}
                 ${p.duration_minutes ? ' · ' + fmtDuration(p.duration_minutes) : ''}<br>
-                ${p.departure_time && p.arrival_time ? p.departure_time + ' → ' + p.arrival_time : ''}
-                ${p.typical_price_low && p.typical_price_high ? '<br>Typical: ' + fmt(p.typical_price_low) + ' – ' + fmt(p.typical_price_high) : ''}
+                ${timeStr ? timeStr + '<br>' : ''}
+                ${airports ? '<span style="color:#64748b;font-size:0.8rem">' + airports + '</span><br>' : ''}
+                ${p.aircraft_type ? '✈️ ' + p.aircraft_type + '<br>' : ''}
+                ${p.typical_price_low && p.typical_price_high ? 'Typical: ' + fmt(p.typical_price_low) + ' – ' + fmt(p.typical_price_high) : ''}
               </div>
             </div>
           `;

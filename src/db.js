@@ -54,7 +54,8 @@ export function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_alerts_leg_type ON price_alerts(leg_id, alert_type, sent_at);
 
-    CREATE VIEW IF NOT EXISTS v_best_prices AS
+    DROP VIEW IF EXISTS v_best_prices;
+    CREATE VIEW v_best_prices AS
     SELECT
       leg_id,
       origin,
@@ -70,6 +71,9 @@ export function initDb() {
       typical_price_low,
       typical_price_high,
       price_level,
+      aircraft_type,
+      departure_airport_name,
+      arrival_airport_name,
       timestamp
     FROM price_snapshots ps
     WHERE ps.timestamp = (
@@ -104,6 +108,24 @@ export function initDb() {
     GROUP BY leg_id, DATE(timestamp, 'unixepoch');
   `);
 
+  // ── Migrations: add new columns (idempotent) ──
+  const migrations = [
+    'ALTER TABLE price_snapshots ADD COLUMN aircraft_type TEXT',
+    'ALTER TABLE price_snapshots ADD COLUMN departure_airport_name TEXT',
+    'ALTER TABLE price_snapshots ADD COLUMN arrival_airport_name TEXT',
+  ];
+  for (const sql of migrations) {
+    try {
+      db.exec(sql);
+      logger.info(`Migration applied: ${sql}`);
+    } catch (err) {
+      // Column already exists — ignore
+      if (!err.message.includes('duplicate column')) {
+        logger.warn(`Migration skipped: ${err.message}`);
+      }
+    }
+  }
+
   logger.info('Database initialized at', DB_PATH);
   return db;
 }
@@ -118,11 +140,13 @@ export function insertSnapshot(snapshot) {
     INSERT INTO price_snapshots
       (leg_id, origin, destination, timestamp, price, airline, stops, duration_minutes,
        departure_time, arrival_time, flight_numbers, booking_token,
-       lowest_price, typical_price_low, typical_price_high, price_level, raw_json)
+       lowest_price, typical_price_low, typical_price_high, price_level, raw_json,
+       aircraft_type, departure_airport_name, arrival_airport_name)
     VALUES
       (@leg_id, @origin, @destination, @timestamp, @price, @airline, @stops, @duration_minutes,
        @departure_time, @arrival_time, @flight_numbers, @booking_token,
-       @lowest_price, @typical_price_low, @typical_price_high, @price_level, @raw_json)
+       @lowest_price, @typical_price_low, @typical_price_high, @price_level, @raw_json,
+       @aircraft_type, @departure_airport_name, @arrival_airport_name)
   `);
   return stmt.run(snapshot);
 }
@@ -138,7 +162,8 @@ export function getAlltimeBest() {
 export function getPriceHistory(legId, since) {
   return getDb().prepare(`
     SELECT leg_id, origin, price, airline, stops, duration_minutes, timestamp,
-           departure_time, arrival_time, price_level
+           departure_time, arrival_time, price_level,
+           aircraft_type, departure_airport_name, arrival_airport_name
     FROM price_snapshots
     WHERE leg_id = ? AND timestamp >= ?
     ORDER BY timestamp ASC
@@ -174,9 +199,14 @@ export function getLastAlertTime(legId, alertType) {
   return row?.last_sent || 0;
 }
 
-export function getTripSummary() {
-  const best = getBestPrices();
-  const alltime = getAlltimeBest();
+export function getTripSummary(activeLegIds) {
+  let best = getBestPrices();
+  let alltime = getAlltimeBest();
+  // Filter to active legs only (excludes stale data from removed trips)
+  if (activeLegIds?.length) {
+    best = best.filter(b => activeLegIds.includes(b.leg_id));
+    alltime = alltime.filter(a => activeLegIds.includes(a.leg_id));
+  }
   const totalCurrent = best.reduce((sum, b) => sum + b.price, 0);
   const totalAlltime = alltime.reduce((sum, a) => sum + a.min_price, 0);
   return { best, alltime, totalCurrent, totalAlltime };
@@ -188,7 +218,8 @@ export function getBestForLegFiltered(legId, excludeAirlines) {
     : '';
   return getDb().prepare(`
     SELECT leg_id, origin, destination, price, airline, stops, duration_minutes,
-           departure_time, arrival_time, timestamp
+           departure_time, arrival_time, timestamp,
+           aircraft_type, departure_airport_name, arrival_airport_name
     FROM price_snapshots
     WHERE leg_id = ? ${excludeFilter}
     ORDER BY timestamp DESC, price ASC
@@ -201,7 +232,8 @@ export function getBestBudgetForLeg(legId, budgetAirlines) {
   const includeFilter = budgetAirlines.map(a => `airline LIKE '%${a}%'`).join(' OR ');
   return getDb().prepare(`
     SELECT leg_id, origin, destination, price, airline, stops, duration_minutes,
-           departure_time, arrival_time, timestamp
+           departure_time, arrival_time, timestamp,
+           aircraft_type, departure_airport_name, arrival_airport_name
     FROM price_snapshots
     WHERE leg_id = ? AND (${includeFilter})
     ORDER BY timestamp DESC, price ASC
