@@ -113,6 +113,7 @@ export function initDb() {
     'ALTER TABLE price_snapshots ADD COLUMN aircraft_type TEXT',
     'ALTER TABLE price_snapshots ADD COLUMN departure_airport_name TEXT',
     'ALTER TABLE price_snapshots ADD COLUMN arrival_airport_name TEXT',
+    'ALTER TABLE price_snapshots ADD COLUMN data_source TEXT',
   ];
   for (const sql of migrations) {
     try {
@@ -141,12 +142,12 @@ export function insertSnapshot(snapshot) {
       (leg_id, origin, destination, timestamp, price, airline, stops, duration_minutes,
        departure_time, arrival_time, flight_numbers, booking_token,
        lowest_price, typical_price_low, typical_price_high, price_level, raw_json,
-       aircraft_type, departure_airport_name, arrival_airport_name)
+       aircraft_type, departure_airport_name, arrival_airport_name, data_source)
     VALUES
       (@leg_id, @origin, @destination, @timestamp, @price, @airline, @stops, @duration_minutes,
        @departure_time, @arrival_time, @flight_numbers, @booking_token,
        @lowest_price, @typical_price_low, @typical_price_high, @price_level, @raw_json,
-       @aircraft_type, @departure_airport_name, @arrival_airport_name)
+       @aircraft_type, @departure_airport_name, @arrival_airport_name, @data_source)
   `);
   return stmt.run(snapshot);
 }

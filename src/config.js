@@ -1,6 +1,10 @@
 import 'dotenv/config';
 
-export const SERPAPI_KEY = process.env.SERPAPI_KEY;
+export const SERPAPI_KEY = process.env.SERPAPI_KEY || '';
+export const AMADEUS_CLIENT_ID = process.env.AMADEUS_CLIENT_ID || '';
+export const AMADEUS_CLIENT_SECRET = process.env.AMADEUS_CLIENT_SECRET || '';
+export const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || '';
+export const RAPIDAPI_MONTHLY_LIMIT = parseInt(process.env.RAPIDAPI_MONTHLY_LIMIT || '100', 10);
 export const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 export const POLL_INTERVAL_MINUTES = parseInt(process.env.POLL_INTERVAL_MINUTES || '30', 10);
 export const DASHBOARD_PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10);
