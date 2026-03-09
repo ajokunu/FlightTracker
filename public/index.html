@@ -5,75 +5,269 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Flight Price Tracker</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
   <style>
+    /* === Reset & Solarized Light Variables === */
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --base03: #002b36; --base02: #073642; --base01: #586e75;
+      --base00: #657b83; --base0: #839496; --base1: #93a1a1;
+      --base2: #eee8d5; --base3: #fdf6e3;
+      --yellow: #b58900; --orange: #cb4b16; --red: #dc322f;
+      --magenta: #d33682; --violet: #6c71c4; --blue: #268bd2;
+      --cyan: #2aa198; --green: #859900;
+      --bg-primary: var(--base3);
+      --bg-card: #ffffff;
+      --text-primary: var(--base02);
+      --text-secondary: var(--base01);
+      --text-muted: var(--base00);
+      --border-color: #d6ceb5;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    /* === Base === */
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0f172a; color: #e2e8f0; padding: 20px;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+      line-height: 1.5;
     }
-    h1 { text-align: center; margin-bottom: 8px; font-size: 1.8rem; }
-    .subtitle { text-align: center; color: #94a3b8; margin-bottom: 24px; font-size: 0.9rem; }
+
+    /* === Header === */
+    .dashboard-header { text-align: center; padding: 24px 20px 20px; }
+    .header-title {
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px; margin-bottom: 8px;
+    }
+    .header-title h1 { font-size: 1.8rem; font-weight: 700; color: var(--text-primary); }
+    .header-icon { color: var(--blue); width: 32px; height: 32px; }
+    .subtitle { color: var(--text-secondary); font-size: 0.9rem; }
+    .route-segment { font-weight: 600; color: var(--text-primary); }
+    .route-arrow { color: var(--base0); margin: 0 4px; }
+    .route-divider { color: var(--base1); margin: 0 8px; }
+    .route-date { color: var(--cyan); font-weight: 600; }
+
+    /* === Trip Total === */
     .trip-total {
-      background: linear-gradient(135deg, #1e3a5f, #1e293b);
-      border: 1px solid #334155; border-radius: 12px; padding: 24px;
-      text-align: center; margin-bottom: 24px;
+      background: linear-gradient(135deg, var(--base2), #f5edd6);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 28px; text-align: center; margin-bottom: 28px;
+      box-shadow: var(--shadow-md);
     }
-    .trip-total .amount { font-size: 2.5rem; font-weight: 700; color: #38bdf8; }
-    .trip-total .alltime { color: #94a3b8; margin-top: 4px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .trip-total-label {
+      font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px;
+    }
+    .trip-total-amount { font-size: 2.8rem; font-weight: 800; color: var(--blue); }
+    .trip-total-alltime { color: var(--cyan); margin-top: 6px; font-size: 0.9rem; font-weight: 500; }
+    .trip-total-updated {
+      color: var(--base0); margin-top: 10px; font-size: 0.78rem;
+      font-weight: 400; letter-spacing: 0.02em;
+    }
+    .trip-total-updated .update-dot {
+      display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+      background: var(--green); margin-right: 5px; vertical-align: middle;
+    }
+
+    /* === Grid === */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px; margin-bottom: 28px;
+    }
+
+    /* === Card === */
     .card {
-      background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.2s ease, box-shadow 0.3s ease, border-color 0.3s ease;
     }
-    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .card-header h3 { font-size: 1rem; }
-    .card .price { font-size: 1.8rem; font-weight: 700; color: #34d399; }
-    .card .meta { color: #94a3b8; font-size: 0.85rem; margin-top: 8px; line-height: 1.6; }
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--cyan);
+    }
+
+    /* Card: Airline row */
+    .card-airline-row {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+    }
+    .airline-logo {
+      width: 28px; height: 28px; border-radius: 6px;
+      object-fit: contain; background: #f8f4e8;
+    }
+    .airline-logo-fallback {
+      width: 28px; height: 28px; border-radius: 6px;
+      background: var(--base2); color: var(--text-secondary);
+      font-size: 0.65rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .airline-name {
+      font-weight: 600; color: var(--text-primary);
+      font-size: 0.95rem; flex: 1;
+    }
+
+    /* Card: Route */
+    .card-route {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+    }
+    .route-code {
+      font-size: 1.15rem; font-weight: 700; color: var(--text-primary);
+      letter-spacing: 0.02em;
+    }
+    .route-arrow-icon {
+      color: var(--base0); display: flex; align-items: center;
+    }
+    .route-arrow-icon svg { width: 18px; height: 18px; }
+
+    /* Card: Price */
+    .card-price {
+      font-size: 2rem; font-weight: 800; margin-bottom: 16px;
+    }
+
+    /* Card: Details grid */
+    .card-details {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 8px 16px; margin-bottom: 14px;
+    }
+    .detail-label {
+      display: block; font-size: 0.68rem; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 1px;
+    }
+    .detail-value {
+      display: block; font-size: 0.9rem; font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* Card: Airports */
+    .card-airports {
+      font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;
+      padding-top: 10px; border-top: 1px solid #ede7d2;
+    }
+
+    /* Card: Aircraft */
+    .card-aircraft {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 6px;
+    }
+    .card-aircraft svg { width: 16px; height: 16px; color: var(--blue); flex-shrink: 0; }
+
+    /* Card: Typical range */
+    .card-typical { font-size: 0.8rem; color: var(--text-muted); }
+
+    /* === Badges === */
     .badge {
-      display: inline-block; padding: 2px 8px; border-radius: 4px;
-      font-size: 0.75rem; font-weight: 600;
+      display: inline-block; padding: 3px 10px; border-radius: 12px;
+      font-size: 0.72rem; font-weight: 600; text-transform: capitalize;
     }
-    .badge-low { background: #065f46; color: #6ee7b7; }
-    .badge-typical { background: #1e3a5f; color: #93c5fd; }
-    .badge-high { background: #7f1d1d; color: #fca5a5; }
+    .badge-low { background: #eef7e9; color: var(--green); border: 1px solid #c8e6b8; }
+    .badge-typical { background: #e8f4fd; color: var(--blue); border: 1px solid #b8d8f0; }
+    .badge-high { background: #fde8e8; color: var(--red); border: 1px solid #f0b8b8; }
+
+    /* === Chart Section === */
     .chart-section {
-      background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; margin-bottom: 24px;
+      background: var(--bg-card); border: 1px solid var(--border-color);
+      border-radius: var(--radius); padding: 24px; margin-bottom: 28px;
+      box-shadow: var(--shadow-sm);
+    }
+    .chart-section h2 {
+      font-size: 1.2rem; color: var(--text-primary); margin-bottom: 16px;
     }
     .chart-controls { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
     .chart-controls button {
-      background: #334155; color: #e2e8f0; border: none; padding: 6px 14px;
-      border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+      background: var(--base2); color: var(--text-secondary);
+      border: 1px solid var(--border-color); padding: 6px 16px;
+      border-radius: 20px; cursor: pointer; font-size: 0.85rem;
+      font-weight: 500; transition: all 0.2s ease;
     }
-    .chart-controls button.active { background: #3b82f6; color: #fff; }
-    .chart-controls button:hover { background: #475569; }
-    .chart-controls button.active:hover { background: #2563eb; }
+    .chart-controls button.active {
+      background: var(--blue); color: #fff; border-color: var(--blue);
+    }
+    .chart-controls button:hover:not(.active) {
+      background: #e6dfc8; border-color: var(--base1);
+    }
     canvas { max-height: 400px; }
+
+    /* === Alerts Section === */
     .alerts-section {
-      background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px;
+      background: var(--bg-card); border: 1px solid var(--border-color);
+      border-radius: var(--radius); padding: 24px;
+      box-shadow: var(--shadow-sm);
     }
-    .alerts-section h2 { margin-bottom: 12px; font-size: 1.2rem; }
+    .alerts-section h2 {
+      margin-bottom: 16px; font-size: 1.2rem; color: var(--text-primary);
+    }
     .alert-item {
-      padding: 10px 0; border-bottom: 1px solid #334155; font-size: 0.85rem;
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 12px 0; border-bottom: 1px solid #ede7d2;
     }
     .alert-item:last-child { border-bottom: none; }
-    .alert-time { color: #64748b; font-size: 0.75rem; }
-    .alert-type { font-weight: 600; margin-right: 8px; }
-    .type-alltime_low { color: #f59e0b; }
-    .type-price_drop { color: #34d399; }
-    .type-price_spike { color: #f87171; }
-    .type-below_typical { color: #a78bfa; }
-    .type-daily_summary { color: #60a5fa; }
-    .refresh-note { text-align: center; color: #475569; font-size: 0.75rem; margin-top: 16px; }
-    .no-data { color: #64748b; text-align: center; padding: 40px; }
+    .alert-badge {
+      display: inline-block; padding: 3px 10px; border-radius: 12px;
+      font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.03em; white-space: nowrap; flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .alert-badge-alltime_low { background: #fdf3d7; color: var(--yellow); }
+    .alert-badge-price_drop { background: #eef7e9; color: var(--green); }
+    .alert-badge-price_spike { background: #fde8e8; color: var(--red); }
+    .alert-badge-below_typical { background: #f0ecf9; color: var(--violet); }
+    .alert-badge-daily_summary { background: #e8f4fd; color: var(--blue); }
+    .alert-body { flex: 1; }
+    .alert-message { color: var(--text-primary); font-size: 0.85rem; }
+    .alert-time { color: var(--text-muted); font-size: 0.75rem; margin-top: 2px; }
+
+    /* === Misc === */
+    .refresh-note {
+      text-align: center; color: var(--base1);
+      font-size: 0.75rem; margin-top: 20px;
+    }
+    .no-data {
+      color: var(--text-muted); text-align: center; padding: 40px;
+    }
   </style>
 </head>
 <body>
-  <h1>Flight Price Tracker</h1>
-  <p class="subtitle">NYC → Auckland → Wellington → Sydney → Melbourne → Boston | May 2026</p>
+
+  <header class="dashboard-header">
+    <div class="header-title">
+      <svg class="header-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>
+      <h1>Flight Price Tracker</h1>
+    </div>
+    <p class="subtitle">
+      <span class="route-segment">NYC</span>
+      <span class="route-arrow">&#8594;</span>
+      <span class="route-segment">Auckland</span>
+      <span class="route-arrow">&#8594;</span>
+      <span class="route-segment">Wellington</span>
+      <span class="route-arrow">&#8594;</span>
+      <span class="route-segment">Sydney</span>
+      <span class="route-arrow">&#8594;</span>
+      <span class="route-segment">Melbourne</span>
+      <span class="route-arrow">&#8594;</span>
+      <span class="route-segment">Boston</span>
+      <span class="route-divider">|</span>
+      <span class="route-date">May 2026</span>
+    </p>
+  </header>
 
   <div class="trip-total">
-    <div>Total Trip Estimate</div>
-    <div class="amount" id="trip-total">—</div>
-    <div class="alltime" id="trip-alltime"></div>
+    <div class="trip-total-label">Total Trip Estimate</div>
+    <div class="trip-total-amount" id="trip-total">&mdash;</div>
+    <div class="trip-total-alltime" id="trip-alltime"></div>
+    <div class="trip-total-updated" id="trip-updated"></div>
   </div>
 
   <div class="grid" id="leg-cards"></div>
@@ -97,15 +291,40 @@
   <div class="refresh-note">Auto-refreshes every 60 seconds</div>
 
   <script>
+    /* ── Config ─────────────────────────────────────── */
+
     const LEGS = [
-      { id: 'nyc-akl', label: 'NYC → AKL', color: '#38bdf8' },
-      { id: 'wlg-syd', label: 'WLG → SYD', color: '#34d399' },
-      { id: 'syd-mel', label: 'SYD → MEL', color: '#a78bfa' },
-      { id: 'mel-bos', label: 'MEL → BOS', color: '#fb923c' },
+      { id: 'nyc-akl', label: 'NYC → AKL', color: '#268bd2' },
+      { id: 'wlg-syd', label: 'WLG → SYD', color: '#2aa198' },
+      { id: 'syd-mel', label: 'SYD → MEL', color: '#6c71c4' },
+      { id: 'mel-bos', label: 'MEL → BOS', color: '#cb4b16' },
     ];
+
+    const AIRLINE_DOMAINS = {
+      'United': 'united.com',
+      'Qantas': 'qantas.com',
+      'Air New Zealand': 'airnewzealand.co.nz',
+      'Jetstar': 'jetstar.com',
+      'Cathay Pacific': 'cathaypacific.com',
+      'Singapore Airlines': 'singaporeair.com',
+      'Delta': 'delta.com',
+      'American Airlines': 'aa.com',
+      'Emirates': 'emirates.com',
+      'LATAM': 'latam.com',
+      'Hawaiian Airlines': 'hawaiianairlines.com',
+      'Virgin Australia': 'virginaustralia.com',
+      'Fiji Airways': 'fijiairways.com',
+      'Korean Air': 'koreanair.com',
+      'Japan Airlines': 'jal.co.jp',
+      'ANA': 'ana.co.jp',
+    };
+
+    const PLANE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>';
 
     let chart = null;
     let currentRange = '7d';
+
+    /* ── Helpers ────────────────────────────────────── */
 
     function fmt(cents) {
       if (!cents && cents !== 0) return '—';
@@ -125,15 +344,47 @@
       return Math.floor(diff / 86400) + 'd ago';
     }
 
+    function getAirlineDomain(name) {
+      if (!name) return null;
+      if (AIRLINE_DOMAINS[name]) return AIRLINE_DOMAINS[name];
+      const lower = name.toLowerCase();
+      for (const [key, domain] of Object.entries(AIRLINE_DOMAINS)) {
+        if (lower.includes(key.toLowerCase()) || key.toLowerCase().includes(lower)) {
+          return domain;
+        }
+      }
+      return null;
+    }
+
+    function getAirlineInitials(name) {
+      if (!name) return '?';
+      return name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+    }
+
+    function priceColor(level) {
+      if (level === 'low') return '#859900';
+      if (level === 'high') return '#dc322f';
+      return '#268bd2';
+    }
+
     function priceLevelBadge(level) {
       if (!level) return '';
       const cls = level === 'low' ? 'badge-low' : level === 'high' ? 'badge-high' : 'badge-typical';
-      return `<span class="badge ${cls}">${level}</span>`;
+      return '<span class="badge ' + cls + '">' + level + '</span>';
     }
 
     async function fetchJSON(url) {
       const res = await fetch(url);
       return res.json();
+    }
+
+    /* ── Load Summary ──────────────────────────────── */
+
+    function fmtTimestamp(unix) {
+      if (!unix) return '';
+      const d = new Date(unix * 1000);
+      const opts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true };
+      return d.toLocaleDateString('en-US', opts);
     }
 
     async function loadSummary() {
@@ -142,12 +393,22 @@
         document.getElementById('trip-total').textContent = fmt(data.totalCurrent);
         if (data.totalAlltime) {
           document.getElementById('trip-alltime').textContent =
-            `All-time best total: ${fmt(data.totalAlltime)}`;
+            'All-time best total: ' + fmt(data.totalAlltime);
+        }
+        // Show last updated timestamp from most recent price snapshot
+        if (data.best && data.best.length) {
+          const latestTs = Math.max(...data.best.map(b => b.timestamp || 0));
+          if (latestTs) {
+            document.getElementById('trip-updated').innerHTML =
+              '<span class="update-dot"></span>Last updated: ' + fmtTimestamp(latestTs);
+          }
         }
       } catch {
         document.getElementById('trip-total').textContent = '—';
       }
     }
+
+    /* ── Load Cards ────────────────────────────────── */
 
     async function loadCards() {
       try {
@@ -160,33 +421,48 @@
 
         container.innerHTML = prices.map(p => {
           const leg = LEGS.find(l => l.id === p.leg_id) || {};
-          const timeStr = p.departure_time && p.arrival_time
-            ? p.departure_time + ' → ' + p.arrival_time : '';
-          const airports = p.departure_airport_name && p.arrival_airport_name
-            ? p.departure_airport_name + ' → ' + p.arrival_airport_name : '';
-          return `
-            <div class="card">
-              <div class="card-header">
-                <h3>${leg.label || p.leg_id}</h3>
-                ${priceLevelBadge(p.price_level)}
-              </div>
-              <div class="price">${fmt(p.price)}</div>
-              <div class="meta">
-                ${p.airline || 'Unknown airline'}<br>
-                ${p.stops === 0 ? 'Nonstop' : (p.stops || '?') + ' stop(s)'}
-                ${p.duration_minutes ? ' · ' + fmtDuration(p.duration_minutes) : ''}<br>
-                ${timeStr ? timeStr + '<br>' : ''}
-                ${airports ? '<span style="color:#64748b;font-size:0.8rem">' + airports + '</span><br>' : ''}
-                ${p.aircraft_type ? '✈️ ' + p.aircraft_type + '<br>' : ''}
-                ${p.typical_price_low && p.typical_price_high ? 'Typical: ' + fmt(p.typical_price_low) + ' – ' + fmt(p.typical_price_high) : ''}
-              </div>
-            </div>
-          `;
+          const domain = getAirlineDomain(p.airline);
+          const initials = getAirlineInitials(p.airline);
+          const codes = (leg.label || p.leg_id).split(' → ');
+          const stopsText = p.stops === 0 ? 'Nonstop' : (p.stops || '?') + ' stop(s)';
+
+          const logoImg = domain
+            ? '<img class="airline-logo" src="https://www.google.com/s2/favicons?domain=' + domain + '&sz=128" alt="' + (p.airline || '') + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
+            : '';
+
+          return '<div class="card">' +
+            '<div class="card-airline-row">' +
+              logoImg +
+              '<div class="airline-logo-fallback" ' + (domain ? 'style="display:none"' : '') + '>' + initials + '</div>' +
+              '<span class="airline-name">' + (p.airline || 'Unknown') + '</span>' +
+              priceLevelBadge(p.price_level) +
+            '</div>' +
+            '<div class="card-route">' +
+              '<span class="route-code">' + (codes[0] || '') + '</span>' +
+              '<span class="route-arrow-icon">' + PLANE_SVG + '</span>' +
+              '<span class="route-code">' + (codes[1] || '') + '</span>' +
+            '</div>' +
+            '<div class="card-price" style="color:' + priceColor(p.price_level) + '">' + fmt(p.price) + '</div>' +
+            '<div class="card-details">' +
+              '<div class="detail-item"><span class="detail-label">Stops</span><span class="detail-value">' + stopsText + '</span></div>' +
+              '<div class="detail-item"><span class="detail-label">Duration</span><span class="detail-value">' + (p.duration_minutes ? fmtDuration(p.duration_minutes) : '—') + '</span></div>' +
+              (p.departure_time ? '<div class="detail-item"><span class="detail-label">Departs</span><span class="detail-value">' + p.departure_time + '</span></div>' : '') +
+              (p.arrival_time ? '<div class="detail-item"><span class="detail-label">Arrives</span><span class="detail-value">' + p.arrival_time + '</span></div>' : '') +
+            '</div>' +
+            (p.departure_airport_name && p.arrival_airport_name
+              ? '<div class="card-airports">' + p.departure_airport_name + ' → ' + p.arrival_airport_name + '</div>' : '') +
+            (p.aircraft_type
+              ? '<div class="card-aircraft">' + PLANE_SVG + '<span>' + p.aircraft_type + '</span></div>' : '') +
+            (p.typical_price_low && p.typical_price_high
+              ? '<div class="card-typical">Typical: ' + fmt(p.typical_price_low) + ' – ' + fmt(p.typical_price_high) + '</div>' : '') +
+          '</div>';
         }).join('');
       } catch {
         document.getElementById('leg-cards').innerHTML = '<div class="no-data">Error loading prices</div>';
       }
     }
+
+    /* ── Load Chart ────────────────────────────────── */
 
     async function loadChart(range) {
       currentRange = range;
@@ -197,10 +473,9 @@
       const datasets = [];
       for (const leg of LEGS) {
         try {
-          const history = await fetchJSON(`/api/history/${leg.id}?range=${range}`);
+          const history = await fetchJSON('/api/history/' + leg.id + '?range=' + range);
           if (!history.length) continue;
 
-          // Group by timestamp, take min price per timestamp
           const byTs = {};
           for (const h of history) {
             if (!byTs[h.timestamp] || h.price < byTs[h.timestamp].price) {
@@ -213,10 +488,13 @@
             label: leg.label,
             data: points.map(p => ({ x: new Date(p.timestamp * 1000), y: p.price / 100 })),
             borderColor: leg.color,
-            backgroundColor: leg.color + '20',
-            borderWidth: 2,
-            pointRadius: 3,
+            backgroundColor: leg.color + '15',
+            borderWidth: 2.5,
+            pointRadius: 2,
+            pointHoverRadius: 5,
+            pointBackgroundColor: leg.color,
             tension: 0.3,
+            fill: true,
           });
         } catch { /* skip */ }
       }
@@ -240,22 +518,31 @@
             x: {
               type: 'time',
               time: { tooltipFormat: 'MMM d, h:mm a' },
-              grid: { color: '#334155' },
-              ticks: { color: '#94a3b8' },
+              grid: { color: '#d6ceb5' },
+              ticks: { color: '#586e75' },
             },
             y: {
-              title: { display: true, text: 'Price (USD)', color: '#94a3b8' },
-              grid: { color: '#334155' },
-              ticks: { color: '#94a3b8', callback: v => '$' + v },
+              title: { display: true, text: 'Price (USD)', color: '#586e75' },
+              grid: { color: '#d6ceb5' },
+              ticks: { color: '#586e75', callback: v => '$' + v },
             },
           },
           plugins: {
-            legend: { labels: { color: '#e2e8f0' } },
-            tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': $' + ctx.parsed.y.toFixed(2) } },
+            legend: { labels: { color: '#073642', font: { weight: '500' } } },
+            tooltip: {
+              backgroundColor: '#073642',
+              titleColor: '#fdf6e3',
+              bodyColor: '#eee8d5',
+              borderColor: '#586e75',
+              borderWidth: 1,
+              callbacks: { label: ctx => ctx.dataset.label + ': $' + ctx.parsed.y.toFixed(2) },
+            },
           },
         },
       });
     }
+
+    /* ── Load Alerts ───────────────────────────────── */
 
     async function loadAlerts() {
       try {
@@ -265,35 +552,32 @@
           container.innerHTML = '<div class="no-data">No alerts yet</div>';
           return;
         }
-        container.innerHTML = alerts.map(a => `
-          <div class="alert-item">
-            <span class="alert-type type-${a.alert_type}">${a.alert_type.replace(/_/g, ' ')}</span>
-            ${a.message || ''}
-            <div class="alert-time">${a.leg_id} · ${timeAgo(a.sent_at)}</div>
-          </div>
-        `).join('');
+        container.innerHTML = alerts.map(a =>
+          '<div class="alert-item">' +
+            '<span class="alert-badge alert-badge-' + a.alert_type + '">' + a.alert_type.replace(/_/g, ' ') + '</span>' +
+            '<div class="alert-body">' +
+              '<div class="alert-message">' + (a.message || '') + '</div>' +
+              '<div class="alert-time">' + a.leg_id + ' &middot; ' + timeAgo(a.sent_at) + '</div>' +
+            '</div>' +
+          '</div>'
+        ).join('');
       } catch {
         document.getElementById('alerts-list').innerHTML = '<div class="no-data">Error loading alerts</div>';
       }
     }
 
+    /* ── Refresh & Init ────────────────────────────── */
+
     async function refresh() {
       await Promise.all([loadSummary(), loadCards(), loadChart(currentRange), loadAlerts()]);
     }
 
-    // Chart range buttons
     document.querySelectorAll('.chart-controls button').forEach(btn => {
       btn.addEventListener('click', () => loadChart(btn.dataset.range));
     });
 
-    // Initial load + auto-refresh
     refresh();
     setInterval(refresh, 60000);
-
-    // Need Chart.js date adapter for time scale
-    const adapterScript = document.createElement('script');
-    adapterScript.src = 'https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3';
-    document.head.appendChild(adapterScript);
   </script>
 </body>
 </html>
