@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { DISCORD_WEBHOOK_URL, FLIGHT_LEGS, TRIPS, PRICE_DROP_ALERT_PCT, PRICE_SPIKE_ALERT_PCT, ALERT_COOLDOWN_HOURS } from './config.js';
 import { getAlltimeMinPrice, getPreviousBestPrice, getLastAlertTime, insertAlert, getBestPrices, getAlltimeBest, getBestForLegFiltered, getBestBudgetForLeg } from './db.js';
+import { isEmailConfigured, sendAlertEmail, sendDailySummaryEmail } from './email.js';
 import { logger } from './logger.js';
 
 const COLORS = {
@@ -216,11 +217,33 @@ export async function evaluateAlerts(results) {
   }
 
   if (!embeds.length) {
-    logger.info('No price changes detected — skipping Discord alert');
+    logger.info('No price changes detected — skipping alerts');
     return;
   }
 
   await sendWebhook({ embeds });
+
+  // Send email alerts alongside Discord
+  if (isEmailConfigured()) {
+    for (const ev of allEvents) {
+      const tripId = ev.cooldownKey.replace('trip-', '');
+      const tripResults = byTrip[tripId] || [];
+      const titles = {
+        alltime_low: `⭐ All-Time Low — ${TRIPS[tripId]?.label || tripId}!`,
+        price_drop: `📉 Price Drop — ${TRIPS[tripId]?.label || tripId}`,
+        price_spike: `📈 Price Increase — ${TRIPS[tripId]?.label || tripId}`,
+        below_typical: `💎 Below Typical — ${TRIPS[tripId]?.label || tripId}`,
+      };
+      await sendAlertEmail({
+        subject: titles[ev.topEvent] || `Flight Update — ${TRIPS[tripId]?.label || tripId}`,
+        topEvent: ev.topEvent,
+        legResults: tripResults,
+        legEvents: ev.legEvents,
+        total: ev.total,
+        tripId,
+      });
+    }
+  }
 
   // Record alerts
   const now = Math.floor(Date.now() / 1000);
@@ -325,6 +348,9 @@ export async function sendDailySummary() {
 
   if (embeds.length) {
     await sendWebhook({ embeds });
+    if (isEmailConfigured()) {
+      await sendDailySummaryEmail(embeds);
+    }
     logger.info('Daily summary sent');
   }
 }

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flight Tracker — Admin</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --base03: #002b36; --base02: #073642; --base01: #586e75;
+      --base00: #657b83; --base0: #839496; --base1: #93a1a1;
+      --base2: #eee8d5; --base3: #fdf6e3;
+      --yellow: #b58900; --orange: #cb4b16; --red: #dc322f;
+      --violet: #6c71c4; --blue: #268bd2; --cyan: #2aa198; --green: #859900;
+      --bg: var(--base3); --card: #ffffff; --border: #d6ceb5;
+      --text: var(--base02); --text2: var(--base01); --muted: var(--base00);
+      --radius: 12px; --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text); padding: 20px;
+      max-width: 900px; margin: 0 auto; line-height: 1.5;
+    }
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border);
+    }
+    .header h1 { font-size: 1.5rem; color: var(--text); }
+    .header a {
+      color: var(--blue); text-decoration: none; font-weight: 500; font-size: 0.9rem;
+    }
+    .header a:hover { text-decoration: underline; }
+    .section {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px; margin-bottom: 24px;
+      box-shadow: var(--shadow);
+    }
+    .section h2 {
+      font-size: 1.15rem; margin-bottom: 16px; color: var(--text);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 7px 16px; border-radius: 8px; cursor: pointer;
+      font-size: 0.85rem; font-weight: 600; border: 1px solid var(--border);
+      transition: all 0.15s ease;
+    }
+    .btn-primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+    .btn-primary:hover { background: #1e7abd; }
+    .btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+    .btn-danger:hover { background: #c42929; }
+    .btn-ghost { background: transparent; color: var(--text2); }
+    .btn-ghost:hover { background: var(--base2); }
+    .btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+
+    /* Items list */
+    .item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 0; border-bottom: 1px solid #ede7d2;
+    }
+    .item:last-child { border-bottom: none; }
+    .item-info { flex: 1; }
+    .item-title { font-weight: 600; color: var(--text); font-size: 0.95rem; }
+    .item-sub { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+    .item-actions { display: flex; gap: 6px; }
+
+    /* Form */
+    .form-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.3); z-index: 100;
+      justify-content: center; align-items: center;
+    }
+    .form-overlay.active { display: flex; }
+    .form-box {
+      background: var(--card); border-radius: var(--radius);
+      padding: 28px; width: 90%; max-width: 520px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+    }
+    .form-box h3 { font-size: 1.1rem; margin-bottom: 16px; color: var(--text); }
+    .form-row { margin-bottom: 14px; }
+    .form-row label {
+      display: block; font-size: 0.78rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--muted); margin-bottom: 4px;
+    }
+    .form-row input, .form-row select {
+      width: 100%; padding: 8px 12px; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 0.9rem; background: var(--bg);
+      color: var(--text); outline: none;
+    }
+    .form-row input:focus, .form-row select:focus { border-color: var(--blue); }
+    .form-row .hint { font-size: 0.72rem; color: var(--base0); margin-top: 2px; }
+    .form-check { display: flex; align-items: center; gap: 8px; }
+    .form-check input[type="checkbox"] { width: auto; }
+    .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+    .toast {
+      position: fixed; bottom: 20px; right: 20px; z-index: 200;
+      padding: 10px 20px; border-radius: 8px; font-size: 0.85rem;
+      font-weight: 600; color: #fff; opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .toast.show { opacity: 1; }
+    .toast-success { background: var(--green); }
+    .toast-error { background: var(--red); }
+    .empty { color: var(--muted); text-align: center; padding: 24px; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Settings</h1>
+    <a href="/">&larr; Back to Dashboard</a>
+  </div>
+
+  <div class="section">
+    <h2>
+      Trips
+      <button class="btn btn-primary btn-sm" onclick="showTripForm()">+ Add Trip</button>
+    </h2>
+    <div id="trips-list"><div class="empty">Loading...</div></div>
+  </div>
+
+  <div class="section">
+    <h2>
+      Flight Legs
+      <button class="btn btn-primary btn-sm" onclick="showLegForm()">+ Add Leg</button>
+    </h2>
+    <div id="legs-list"><div class="empty">Loading...</div></div>
+  </div>
+
+  <!-- Trip Form Modal -->
+  <div class="form-overlay" id="trip-modal">
+    <div class="form-box">
+      <h3 id="trip-form-title">Add Trip</h3>
+      <form id="trip-form" onsubmit="saveTrip(event)">
+        <input type="hidden" id="trip-edit-id">
+        <div class="form-row">
+          <label>Trip ID</label>
+          <input type="text" id="trip-id" required placeholder="e.g. europe-2026" pattern="[a-z0-9-]+">
+          <div class="hint">Lowercase letters, numbers, dashes only</div>
+        </div>
+        <div class="form-row">
+          <label>Label</label>
+          <input type="text" id="trip-label" required placeholder="e.g. Europe Summer Trip">
+        </div>
+        <div class="form-row">
+          <label>Subtitle</label>
+          <input type="text" id="trip-subtitle" placeholder="e.g. NYC → London → Paris → NYC | Jul 2026">
+        </div>
+        <div class="form-row">
+          <label>Departure Date</label>
+          <input type="date" id="trip-date" required>
+        </div>
+        <div class="form-row">
+          <label>Passengers</label>
+          <input type="number" id="trip-passengers" value="1" min="1" max="9">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('trip-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Trip</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Leg Form Modal -->
+  <div class="form-overlay" id="leg-modal">
+    <div class="form-box">
+      <h3 id="leg-form-title">Add Flight Leg</h3>
+      <form id="leg-form" onsubmit="saveLeg(event)">
+        <input type="hidden" id="leg-edit-id">
+        <div class="form-row">
+          <label>Leg ID</label>
+          <input type="text" id="leg-id" required placeholder="e.g. nyc-lon" pattern="[a-z0-9-]+">
+          <div class="hint">Lowercase letters, numbers, dashes only</div>
+        </div>
+        <div class="form-row">
+          <label>Trip</label>
+          <select id="leg-trip" required></select>
+        </div>
+        <div class="form-row">
+          <label>Label</label>
+          <input type="text" id="leg-label" placeholder="e.g. New York → London">
+        </div>
+        <div class="form-row">
+          <label>Emoji</label>
+          <input type="text" id="leg-emoji" placeholder="e.g. 🗽✈️🇬🇧">
+        </div>
+        <div class="form-row">
+          <label>Origin Airport(s)</label>
+          <input type="text" id="leg-origins" required placeholder="e.g. JFK, EWR, LGA">
+          <div class="hint">Comma-separated IATA codes</div>
+        </div>
+        <div class="form-row">
+          <label>Destination Airport</label>
+          <input type="text" id="leg-dest" required placeholder="e.g. LHR" maxlength="4">
+        </div>
+        <div class="form-row">
+          <label>Date</label>
+          <input type="date" id="leg-date" required>
+        </div>
+        <div class="form-row form-check">
+          <input type="checkbox" id="leg-nonstop">
+          <label for="leg-nonstop" style="margin:0;text-transform:none;font-size:0.9rem;color:var(--text)">Nonstop flights only</label>
+        </div>
+        <div class="form-row">
+          <label>Passengers</label>
+          <input type="number" id="leg-passengers" value="1" min="1" max="9">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('leg-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Leg</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let tripsData = {};
+    let legsData = [];
+
+    async function fetchJSON(url) { return (await fetch(url)).json(); }
+
+    function toast(msg, type = 'success') {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = 'toast toast-' + type + ' show';
+      setTimeout(() => el.classList.remove('show'), 2500);
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    /* ── Trips ── */
+
+    async function loadTrips() {
+      tripsData = await fetchJSON('/api/admin/trips');
+      const list = document.getElementById('trips-list');
+      const entries = Object.entries(tripsData);
+      if (!entries.length) {
+        list.innerHTML = '<div class="empty">No trips configured</div>';
+        return;
+      }
+      list.innerHTML = entries.map(([id, t]) =>
+        '<div class="item">' +
+          '<div class="item-info">' +
+            '<div class="item-title">' + (t.label || id) + '</div>' +
+            '<div class="item-sub">' + id + ' &middot; ' + (t.departureDate || '?') + ' &middot; ' + (t.passengers || 1) + ' pax</div>' +
+          '</div>' +
+          '<div class="item-actions">' +
+            '<button class="btn btn-ghost btn-sm" onclick="editTrip(\'' + id + '\')">Edit</button>' +
+            '<button class="btn btn-danger btn-sm" onclick="removeTrip(\'' + id + '\')">Delete</button>' +
+          '</div>' +
+        '</div>'
+      ).join('');
+    }
+
+    function showTripForm(trip) {
+      document.getElementById('trip-form-title').textContent = trip ? 'Edit Trip' : 'Add Trip';
+      document.getElementById('trip-edit-id').value = trip ? trip.id : '';
+      document.getElementById('trip-id').value = trip ? trip.id : '';
+      document.getElementById('trip-id').disabled = !!trip;
+      document.getElementById('trip-label').value = trip ? trip.label : '';
+      document.getElementById('trip-subtitle').value = trip ? (trip.subtitle || '') : '';
+      document.getElementById('trip-date').value = trip ? (trip.departureDate || '') : '';
+      document.getElementById('trip-passengers').value = trip ? (trip.passengers || 1) : 1;
+      document.getElementById('trip-modal').classList.add('active');
+    }
+
+    function editTrip(id) {
+      showTripForm({ id, ...tripsData[id] });
+    }
+
+    async function saveTrip(e) {
+      e.preventDefault();
+      const editId = document.getElementById('trip-edit-id').value;
+      const id = editId || document.getElementById('trip-id').value;
+      const body = {
+        label: document.getElementById('trip-label').value,
+        subtitle: document.getElementById('trip-subtitle').value,
+        departureDate: document.getElementById('trip-date').value,
+        passengers: parseInt(document.getElementById('trip-passengers').value) || 1,
+      };
+      try {
+        const res = await fetch('/api/admin/trips/' + id, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        closeModal('trip-modal');
+        toast('Trip saved');
+        await loadAll();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    }
+
+    async function removeTrip(id) {
+      if (!confirm('Delete trip "' + id + '" and all its legs?')) return;
+      try {
+        const res = await fetch('/api/admin/trips/' + id, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        toast('Trip deleted');
+        await loadAll();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    }
+
+    /* ── Legs ── */
+
+    async function loadLegs() {
+      legsData = await fetchJSON('/api/admin/legs');
+      const list = document.getElementById('legs-list');
+      if (!legsData.length) {
+        list.innerHTML = '<div class="empty">No flight legs configured</div>';
+        return;
+      }
+      list.innerHTML = legsData.map(l =>
+        '<div class="item">' +
+          '<div class="item-info">' +
+            '<div class="item-title">' + (l.emoji || '') + ' ' + (l.label || l.id) + '</div>' +
+            '<div class="item-sub">' +
+              l.id + ' &middot; ' + (l.origins || []).join('/') + ' → ' + l.destination +
+              ' &middot; ' + l.date +
+              ' &middot; trip: ' + l.trip +
+              (l.nonstopOnly ? ' &middot; nonstop' : '') +
+            '</div>' +
+          '</div>' +
+          '<div class="item-actions">' +
+            '<button class="btn btn-ghost btn-sm" onclick="editLeg(\'' + l.id + '\')">Edit</button>' +
+            '<button class="btn btn-danger btn-sm" onclick="removeLeg(\'' + l.id + '\')">Delete</button>' +
+          '</div>' +
+        '</div>'
+      ).join('');
+    }
+
+    function populateTripSelect() {
+      const sel = document.getElementById('leg-trip');
+      sel.innerHTML = Object.entries(tripsData).map(([id, t]) =>
+        '<option value="' + id + '">' + (t.label || id) + '</option>'
+      ).join('');
+    }
+
+    function showLegForm(leg) {
+      populateTripSelect();
+      document.getElementById('leg-form-title').textContent = leg ? 'Edit Leg' : 'Add Flight Leg';
+      document.getElementById('leg-edit-id').value = leg ? leg.id : '';
+      document.getElementById('leg-id').value = leg ? leg.id : '';
+      document.getElementById('leg-id').disabled = !!leg;
+      document.getElementById('leg-label').value = leg ? (leg.label || '') : '';
+      document.getElementById('leg-emoji').value = leg ? (leg.emoji || '') : '';
+      document.getElementById('leg-origins').value = leg ? (leg.origins || []).join(', ') : '';
+      document.getElementById('leg-dest').value = leg ? (leg.destination || '') : '';
+      document.getElementById('leg-date').value = leg ? (leg.date || '') : '';
+      document.getElementById('leg-nonstop').checked = leg ? !!leg.nonstopOnly : false;
+      document.getElementById('leg-trip').value = leg ? (leg.trip || '') : '';
+      document.getElementById('leg-passengers').value = leg ? (leg.passengers || 1) : 1;
+      document.getElementById('leg-modal').classList.add('active');
+    }
+
+    function editLeg(id) {
+      const leg = legsData.find(l => l.id === id);
+      if (leg) showLegForm(leg);
+    }
+
+    async function saveLeg(e) {
+      e.preventDefault();
+      const editId = document.getElementById('leg-edit-id').value;
+      const id = editId || document.getElementById('leg-id').value;
+      const body = {
+        label: document.getElementById('leg-label').value,
+        emoji: document.getElementById('leg-emoji').value,
+        origins: document.getElementById('leg-origins').value,
+        destination: document.getElementById('leg-dest').value.toUpperCase(),
+        date: document.getElementById('leg-date').value,
+        nonstopOnly: document.getElementById('leg-nonstop').checked,
+        trip: document.getElementById('leg-trip').value,
+        passengers: parseInt(document.getElementById('leg-passengers').value) || 1,
+      };
+      try {
+        const res = await fetch('/api/admin/legs/' + id, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        closeModal('leg-modal');
+        toast('Leg saved');
+        await loadAll();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    }
+
+    async function removeLeg(id) {
+      if (!confirm('Delete leg "' + id + '"?')) return;
+      try {
+        const res = await fetch('/api/admin/legs/' + id, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        toast('Leg deleted');
+        await loadAll();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    }
+
+    /* ── Init ── */
+
+    async function loadAll() {
+      await loadTrips();
+      await loadLegs();
+    }
+
+    loadAll();
+  </script>
+</body>
+</html>

@@ -229,6 +229,52 @@
     .alert-message { color: var(--text-primary); font-size: 0.85rem; }
     .alert-time { color: var(--text-muted); font-size: 0.75rem; margin-top: 2px; }
 
+    /* === Stats Section === */
+    .stats-section {
+      background: var(--bg-card); border: 1px solid var(--border-color);
+      border-radius: var(--radius); padding: 24px; margin-bottom: 28px;
+      box-shadow: var(--shadow-sm);
+    }
+    .stats-section h2 {
+      margin-bottom: 16px; font-size: 1.2rem; color: var(--text-primary);
+    }
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .stat-card {
+      background: var(--base3); border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm); padding: 16px; text-align: center;
+    }
+    .stat-card-header {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--text-muted); margin-bottom: 8px; font-weight: 600;
+    }
+    .stat-card-value {
+      font-size: 1.8rem; font-weight: 800; margin-bottom: 4px;
+    }
+    .stat-card-sub {
+      font-size: 0.75rem; color: var(--text-secondary);
+    }
+    .stat-bar-row {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+    }
+    .stat-bar-label {
+      font-size: 0.82rem; font-weight: 600; color: var(--text-primary);
+      min-width: 80px;
+    }
+    .stat-bar-track {
+      flex: 1; height: 10px; background: var(--base2);
+      border-radius: 5px; overflow: hidden;
+    }
+    .stat-bar-fill {
+      height: 100%; border-radius: 5px; transition: width 0.5s ease;
+    }
+    .stat-bar-count {
+      font-size: 0.78rem; color: var(--text-secondary); min-width: 50px;
+      text-align: right;
+    }
+
     /* === Misc === */
     .refresh-note {
       text-align: center; color: var(--base1);
@@ -245,6 +291,9 @@
     <div class="header-title">
       <svg class="header-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>
       <h1>Flight Price Tracker</h1>
+      <a href="/admin.html" style="color:var(--base0);margin-left:8px;display:flex;" title="Settings">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </a>
     </div>
     <p class="subtitle">
       <span class="route-segment">NYC</span>
@@ -286,6 +335,11 @@
   <div class="alerts-section">
     <h2>Recent Alerts</h2>
     <div id="alerts-list"><div class="no-data">No alerts yet</div></div>
+  </div>
+
+  <div class="stats-section">
+    <h2>API Usage</h2>
+    <div id="stats-content"><div class="no-data">Loading stats...</div></div>
   </div>
 
   <div class="refresh-note">Auto-refreshes every 60 seconds</div>
@@ -566,10 +620,87 @@
       }
     }
 
+    /* ── Load Stats ────────────────────────────────── */
+
+    async function loadStats() {
+      try {
+        const stats = await fetchJSON('/api/stats');
+        const container = document.getElementById('stats-content');
+        const session = stats.session || {};
+        const dbRows = stats.database || [];
+        const rapidLimit = stats.rapidapiMonthlyLimit || 100;
+
+        const adapterColors = { serpapi: '#268bd2', amadeus: '#2aa198', rapidapi: '#6c71c4' };
+        const adapterLabels = { serpapi: 'SerpAPI', amadeus: 'Amadeus', rapidapi: 'RapidAPI' };
+
+        // Session stats cards
+        const adapters = ['serpapi', 'amadeus', 'rapidapi'];
+        const totalCalls = adapters.reduce((s, a) => s + (session[a]?.calls || 0), 0);
+        const totalSuccess = adapters.reduce((s, a) => s + (session[a]?.successes || 0), 0);
+
+        // DB totals per adapter
+        const dbMap = {};
+        for (const row of dbRows) { dbMap[row.data_source] = row; }
+
+        let html = '<div class="stats-grid">';
+
+        // Summary card
+        html += '<div class="stat-card">' +
+          '<div class="stat-card-header">This Session</div>' +
+          '<div class="stat-card-value" style="color:var(--blue)">' + totalCalls + '</div>' +
+          '<div class="stat-card-sub">' + totalSuccess + ' successful</div>' +
+        '</div>';
+
+        // Total snapshots card
+        const totalSnaps = dbRows.reduce((s, r) => s + (r.total_snapshots || 0), 0);
+        html += '<div class="stat-card">' +
+          '<div class="stat-card-header">Total Snapshots</div>' +
+          '<div class="stat-card-value" style="color:var(--cyan)">' + totalSnaps.toLocaleString() + '</div>' +
+          '<div class="stat-card-sub">across all adapters</div>' +
+        '</div>';
+
+        // RapidAPI quota card
+        const rapidSession = session.rapidapi || {};
+        html += '<div class="stat-card">' +
+          '<div class="stat-card-header">RapidAPI Quota</div>' +
+          '<div class="stat-card-value" style="color:var(--violet)">' + rapidSession.calls + '/' + rapidLimit + '</div>' +
+          '<div class="stat-card-sub">this session (monthly limit)</div>' +
+        '</div>';
+
+        html += '</div>';
+
+        // Per-adapter bars
+        const maxSnaps = Math.max(...dbRows.map(r => r.total_snapshots), 1);
+        html += '<div style="margin-top:20px">';
+        for (const a of adapters) {
+          const db = dbMap[a] || {};
+          const sess = session[a] || {};
+          const count = db.total_snapshots || 0;
+          const pct = Math.round((count / maxSnaps) * 100);
+          const color = adapterColors[a];
+          const lastSeen = db.last_seen ? timeAgo(db.last_seen) : 'never';
+
+          html += '<div class="stat-bar-row">' +
+            '<span class="stat-bar-label">' + (adapterLabels[a] || a) + '</span>' +
+            '<div class="stat-bar-track"><div class="stat-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
+            '<span class="stat-bar-count">' + count.toLocaleString() + '</span>' +
+          '</div>';
+          html += '<div style="font-size:0.72rem;color:var(--text-muted);margin-left:90px;margin-bottom:12px">' +
+            'Session: ' + (sess.calls || 0) + ' calls (' + (sess.successes || 0) + ' ok, ' + (sess.failures || 0) + ' fail) · Last: ' + lastSeen +
+          '</div>';
+        }
+        html += '</div>';
+
+        container.innerHTML = html;
+      } catch {
+        document.getElementById('stats-content').innerHTML = '<div class="no-data">Error loading stats</div>';
+      }
+    }
+
     /* ── Refresh & Init ────────────────────────────── */
 
     async function refresh() {
-      await Promise.all([loadSummary(), loadCards(), loadChart(currentRange), loadAlerts()]);
+      await Promise.all([loadSummary(), loadCards(), loadChart(currentRange), loadAlerts(), loadStats()]);
     }
 
     document.querySelectorAll('.chart-controls button').forEach(btn => {

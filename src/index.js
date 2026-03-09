@@ -1,5 +1,6 @@
 import { SERPAPI_KEY, AMADEUS_CLIENT_ID, AMADEUS_CLIENT_SECRET, RAPIDAPI_KEY,
-         DISCORD_WEBHOOK_URL, FLIGHT_LEGS, DASHBOARD_PORT } from './config.js';
+         DISCORD_WEBHOOK_URL, GMAIL_USER, GMAIL_APP_PASSWORD, EMAIL_TO,
+         FLIGHT_LEGS, DASHBOARD_PORT } from './config.js';
 import { initDb } from './db.js';
 import { startScheduler } from './scheduler.js';
 import { startDashboard } from './dashboard.js';
@@ -15,6 +16,11 @@ function validateEnv() {
   if (!AMADEUS_CLIENT_ID || !AMADEUS_CLIENT_SECRET) logger.warn('Amadeus credentials not set — Amadeus fallback unavailable');
   if (!RAPIDAPI_KEY) logger.warn('RAPIDAPI_KEY not set — Skyscanner fallback unavailable');
   if (!DISCORD_WEBHOOK_URL) logger.warn('DISCORD_WEBHOOK_URL not set — Discord alerts will be skipped');
+  if (GMAIL_USER && GMAIL_APP_PASSWORD && EMAIL_TO) {
+    logger.info(`Email alerts enabled → ${EMAIL_TO}`);
+  } else {
+    logger.warn('Email not configured — set GMAIL_USER, GMAIL_APP_PASSWORD, EMAIL_TO in .env');
+  }
 }
 
 function main() {

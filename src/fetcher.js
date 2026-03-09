@@ -11,9 +11,37 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/* ── Adapter usage tracking ──────────────────────────────── */
+
+// Track per-adapter call counts for the current process lifetime
+const adapterStats = {
+  serpapi:  { calls: 0, successes: 0, failures: 0, lastError: null, lastCallAt: null },
+  amadeus:  { calls: 0, successes: 0, failures: 0, lastError: null, lastCallAt: null },
+  rapidapi: { calls: 0, successes: 0, failures: 0, lastError: null, lastCallAt: null },
+};
+
+export function getAdapterStats() {
+  return { ...adapterStats };
+}
+
+/* ── Smart SerpAPI skip ──────────────────────────────────── */
+
+// When SerpAPI hits quota/rate-limit, skip it for the rest of this poll cycle
+let serpApiExhausted = false;
+
+export function resetSerpApiExhausted() {
+  serpApiExhausted = false;
+}
+
 function getAdapterChain() {
   const chain = [];
-  if (SERPAPI_KEY) chain.push(serpapi);
+  if (SERPAPI_KEY) {
+    if (serpApiExhausted) {
+      logger.info('[SerpAPI] Skipping — exhausted this cycle');
+    } else {
+      chain.push(serpapi);
+    }
+  }
   if (AMADEUS_CLIENT_ID && AMADEUS_CLIENT_SECRET) chain.push(amadeus);
   if (RAPIDAPI_KEY) chain.push(skyscanner);
   return chain;
@@ -38,9 +66,14 @@ async function fetchLeg(leg, originOverride) {
   let lastError = null;
 
   for (const adapter of adapters) {
+    const statsKey = adapter.SOURCE_NAME;
     try {
+      adapterStats[statsKey].calls++;
+      adapterStats[statsKey].lastCallAt = Date.now();
+
       const { flights, insights } = await adapter.fetchFlights(origin, leg.destination, leg.date, options);
 
+      adapterStats[statsKey].successes++;
       consecutiveFailures = 0;
 
       const now = Math.floor(Date.now() / 1000);
@@ -97,7 +130,16 @@ async function fetchLeg(leg, originOverride) {
       };
     } catch (err) {
       lastError = err;
+      adapterStats[statsKey].failures++;
+      adapterStats[statsKey].lastError = err.message;
       logger.warn(`[${adapter.SOURCE_NAME}] Failed for ${origin}→${leg.destination}: ${err.message}`);
+
+      // If SerpAPI hit quota/rate-limit, skip it for remaining legs this cycle
+      if (adapter === serpapi && (err.message.includes('rate limited') || err.message.includes('429') || err.message.includes('quota'))) {
+        serpApiExhausted = true;
+        logger.info('[SerpAPI] Marked as exhausted — skipping for rest of poll cycle');
+      }
+
       if (adapter !== adapters[adapters.length - 1]) {
         logger.info('Falling back to next adapter...');
       }
@@ -118,6 +160,8 @@ async function fetchLeg(leg, originOverride) {
 }
 
 export async function fetchAllLegs() {
+  // Reset SerpAPI skip flag at the start of each poll cycle
+  serpApiExhausted = false;
   const results = [];
 
   for (const leg of FLIGHT_LEGS) {

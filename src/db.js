@@ -253,3 +253,18 @@ export function getDailyTrends(legId) {
     SELECT * FROM v_daily_trends WHERE leg_id = ? ORDER BY day ASC
   `).all(legId);
 }
+
+export function getAdapterCallCounts() {
+  return getDb().prepare(`
+    SELECT
+      data_source,
+      COUNT(*) AS total_snapshots,
+      COUNT(DISTINCT leg_id) AS legs_covered,
+      MIN(timestamp) AS first_seen,
+      MAX(timestamp) AS last_seen
+    FROM price_snapshots
+    WHERE data_source IS NOT NULL
+    GROUP BY data_source
+    ORDER BY total_snapshots DESC
+  `).all();
+}
