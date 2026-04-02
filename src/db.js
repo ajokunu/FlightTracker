@@ -268,3 +268,18 @@ export function getAdapterCallCounts() {
     ORDER BY total_snapshots DESC
   `).all();
 }
+
+export function pruneOldSnapshots(retentionDays) {
+  const cutoff = Math.floor(Date.now() / 1000) - (retentionDays * 86400);
+  const result = getDb().prepare('DELETE FROM price_snapshots WHERE timestamp < ?').run(cutoff);
+  if (result.changes > 10000) {
+    getDb().exec('VACUUM');
+  }
+  return result.changes;
+}
+
+export function getDbStats() {
+  const snapshots = getDb().prepare('SELECT COUNT(*) AS count, MIN(timestamp) AS oldest, MAX(timestamp) AS newest FROM price_snapshots').get();
+  const alerts = getDb().prepare('SELECT COUNT(*) AS count FROM price_alerts').get();
+  return { snapshots: snapshots.count, oldest: snapshots.oldest, newest: snapshots.newest, alerts: alerts.count };
+}

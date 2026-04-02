@@ -17,6 +17,7 @@ export const DASHBOARD_PORT = parseInt(process.env.DASHBOARD_PORT || '3001', 10)
 export const PRICE_DROP_ALERT_PCT = parseFloat(process.env.PRICE_DROP_ALERT_PCT || '5');
 export const PRICE_SPIKE_ALERT_PCT = parseFloat(process.env.PRICE_SPIKE_ALERT_PCT || '10');
 export const ALERT_COOLDOWN_HOURS = parseFloat(process.env.ALERT_COOLDOWN_HOURS || '2');
+export const DATA_RETENTION_DAYS = parseInt(process.env.DATA_RETENTION_DAYS || '90', 10);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const USER_CONFIG_FILE = path.resolve(__dirname, '../data/user-config.json');
@@ -30,6 +31,8 @@ const DEFAULT_TRIPS = {
     subtitle: 'NYC → Auckland → Wellington → Sydney → Melbourne → Boston | May 2026',
     passengers: 1,
     departureDate: '2026-05-01',
+    color: '#3498DB',
+    icon: '✈️',
   },
 };
 
@@ -44,6 +47,7 @@ const DEFAULT_FLIGHT_LEGS = [
     nonstopOnly: true,
     trip: 'nz',
     passengers: 1,
+    chartColor: '#268bd2',
   },
   {
     id: 'wlg-syd',
@@ -55,6 +59,7 @@ const DEFAULT_FLIGHT_LEGS = [
     nonstopOnly: true,
     trip: 'nz',
     passengers: 1,
+    chartColor: '#2aa198',
   },
   {
     id: 'syd-mel',
@@ -66,6 +71,7 @@ const DEFAULT_FLIGHT_LEGS = [
     nonstopOnly: true,
     trip: 'nz',
     passengers: 1,
+    chartColor: '#6c71c4',
   },
   {
     id: 'mel-bos',
@@ -77,6 +83,7 @@ const DEFAULT_FLIGHT_LEGS = [
     nonstopOnly: false,
     trip: 'nz',
     passengers: 1,
+    chartColor: '#cb4b16',
   },
 ];
 

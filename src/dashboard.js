@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getBestPrices, getAlltimeBest, getPriceHistory, getDailyTrends, getRecentAlerts, getTripSummary, getAdapterCallCounts } from './db.js';
+import { getBestPrices, getAlltimeBest, getPriceHistory, getDailyTrends, getRecentAlerts, getTripSummary, getAdapterCallCounts, pruneOldSnapshots, getDbStats } from './db.js';
 import { FLIGHT_LEGS, TRIPS, RAPIDAPI_MONTHLY_LIMIT, upsertTrip, deleteTrip, upsertLeg, deleteLeg } from './config.js';
 import { getAdapterStats } from './fetcher.js';
 import { logger } from './logger.js';
@@ -43,10 +43,30 @@ export function startDashboard(port) {
 
   app.get('/api/summary', (req, res) => {
     try {
-      res.json(getTripSummary(activeLegIds()));
+      let ids = activeLegIds();
+      const tripFilter = req.query.trip;
+      if (tripFilter) {
+        ids = FLIGHT_LEGS.filter(l => l.trip === tripFilter).map(l => l.id);
+      }
+      res.json(getTripSummary(ids));
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
+  });
+
+  // Public config endpoint — gives frontend everything it needs to render dynamically
+  app.get('/api/config', (req, res) => {
+    const trips = Object.values(TRIPS).map(t => ({
+      id: t.id, label: t.label, subtitle: t.subtitle,
+      departureDate: t.departureDate, passengers: t.passengers,
+      color: t.color || '#3498DB', icon: t.icon || '✈️',
+    }));
+    const legs = FLIGHT_LEGS.map(l => ({
+      id: l.id, label: l.label, emoji: l.emoji, trip: l.trip,
+      origins: l.origins, destination: l.destination, date: l.date,
+      chartColor: l.chartColor, nonstopOnly: l.nonstopOnly,
+    }));
+    res.json({ trips, legs });
   });
 
   app.get('/api/trends/:legId', (req, res) => {
@@ -98,9 +118,9 @@ export function startDashboard(port) {
   app.put('/api/admin/trips/:tripId', (req, res) => {
     try {
       const { tripId } = req.params;
-      const { label, subtitle, passengers, departureDate } = req.body;
+      const { label, subtitle, passengers, departureDate, color, icon } = req.body;
       if (!label) return res.status(400).json({ error: 'label is required' });
-      upsertTrip(tripId, { label, subtitle, passengers: passengers || 1, departureDate });
+      upsertTrip(tripId, { label, subtitle, passengers: passengers || 1, departureDate, color: color || '#3498DB', icon: icon || '✈️' });
       logger.info(`[Admin] Trip "${tripId}" saved`);
       res.json({ ok: true, trip: TRIPS[tripId] });
     } catch (err) {
@@ -125,7 +145,7 @@ export function startDashboard(port) {
   app.put('/api/admin/legs/:legId', (req, res) => {
     try {
       const { legId } = req.params;
-      const { label, emoji, origins, destination, date, nonstopOnly, trip, passengers } = req.body;
+      const { label, emoji, origins, destination, date, nonstopOnly, trip, passengers, chartColor, budgetAirlines } = req.body;
       if (!destination || !date || !trip) {
         return res.status(400).json({ error: 'destination, date, and trip are required' });
       }
@@ -136,6 +156,9 @@ export function startDashboard(port) {
       if (!originsArr.length) {
         return res.status(400).json({ error: 'At least one origin airport is required' });
       }
+      const budgetArr = Array.isArray(budgetAirlines) ? budgetAirlines
+        : typeof budgetAirlines === 'string' ? budgetAirlines.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
       upsertLeg({
         id: legId,
         label: label || `${originsArr[0]} → ${destination}`,
@@ -146,9 +169,33 @@ export function startDashboard(port) {
         nonstopOnly: nonstopOnly ?? false,
         trip,
         passengers: passengers || 1,
+        chartColor: chartColor || '',
+        budgetAirlines: budgetArr,
       });
       logger.info(`[Admin] Leg "${legId}" saved`);
       res.json({ ok: true, leg: FLIGHT_LEGS.find(l => l.id === legId) });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // DB stats
+  app.get('/api/admin/db-stats', (req, res) => {
+    try {
+      res.json(getDbStats());
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Prune old data
+  app.post('/api/admin/prune', (req, res) => {
+    try {
+      const days = parseInt(req.body.retentionDays || '90', 10);
+      if (days < 1) return res.status(400).json({ error: 'retentionDays must be >= 1' });
+      const deleted = pruneOldSnapshots(days);
+      logger.info(`[Admin] Pruned ${deleted} snapshots older than ${days} days`);
+      res.json({ ok: true, deleted, retentionDays: days });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

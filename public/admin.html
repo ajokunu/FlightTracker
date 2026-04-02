@@ -104,6 +104,28 @@
     .toast-success { background: var(--green); }
     .toast-error { background: var(--red); }
     .empty { color: var(--muted); text-align: center; padding: 24px; font-size: 0.9rem; }
+    .form-row-inline { display: flex; gap: 12px; }
+    .form-row-inline .form-row { flex: 1; }
+    .color-preview {
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .color-preview input[type="color"] {
+      width: 40px; height: 32px; padding: 2px; border: 1px solid var(--border);
+      border-radius: 6px; cursor: pointer; background: var(--bg);
+    }
+    .color-preview input[type="text"] { flex: 1; }
+    .db-stats {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px; margin-bottom: 16px;
+    }
+    .db-stat {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px; text-align: center;
+    }
+    .db-stat-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+    .db-stat-value { font-size: 1.3rem; font-weight: 800; color: var(--blue); margin-top: 2px; }
+    .prune-row { display: flex; align-items: center; gap: 12px; }
+    .prune-row input { width: 80px; }
   </style>
 </head>
 <body>
@@ -126,6 +148,17 @@
       <button class="btn btn-primary btn-sm" onclick="showLegForm()">+ Add Leg</button>
     </h2>
     <div id="legs-list"><div class="empty">Loading...</div></div>
+  </div>
+
+  <div class="section">
+    <h2>Data Management</h2>
+    <div class="db-stats" id="db-stats"><div class="empty">Loading...</div></div>
+    <div class="prune-row">
+      <label style="font-size:0.85rem;font-weight:600;color:var(--text2)">Prune data older than</label>
+      <input type="number" id="prune-days" value="90" min="1" max="365" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.9rem">
+      <span style="font-size:0.85rem;color:var(--muted)">days</span>
+      <button class="btn btn-danger btn-sm" onclick="pruneData()">Prune</button>
+    </div>
   </div>
 
   <!-- Trip Form Modal -->
@@ -151,9 +184,22 @@
           <label>Departure Date</label>
           <input type="date" id="trip-date" required>
         </div>
+        <div class="form-row-inline">
+          <div class="form-row">
+            <label>Passengers</label>
+            <input type="number" id="trip-passengers" value="1" min="1" max="9">
+          </div>
+          <div class="form-row">
+            <label>Icon (Emoji)</label>
+            <input type="text" id="trip-icon" placeholder="e.g. 🇰🇷" maxlength="4">
+          </div>
+        </div>
         <div class="form-row">
-          <label>Passengers</label>
-          <input type="number" id="trip-passengers" value="1" min="1" max="9">
+          <label>Color</label>
+          <div class="color-preview">
+            <input type="color" id="trip-color" value="#3498DB" onchange="document.getElementById('trip-color-hex').value=this.value">
+            <input type="text" id="trip-color-hex" value="#3498DB" placeholder="#3498DB" pattern="#[0-9a-fA-F]{6}" onchange="document.getElementById('trip-color').value=this.value">
+          </div>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-ghost" onclick="closeModal('trip-modal')">Cancel</button>
@@ -203,9 +249,23 @@
           <input type="checkbox" id="leg-nonstop">
           <label for="leg-nonstop" style="margin:0;text-transform:none;font-size:0.9rem;color:var(--text)">Nonstop flights only</label>
         </div>
+        <div class="form-row-inline">
+          <div class="form-row">
+            <label>Passengers</label>
+            <input type="number" id="leg-passengers" value="1" min="1" max="9">
+          </div>
+          <div class="form-row">
+            <label>Chart Color</label>
+            <div class="color-preview">
+              <input type="color" id="leg-chartcolor" value="#268bd2" onchange="document.getElementById('leg-chartcolor-hex').value=this.value">
+              <input type="text" id="leg-chartcolor-hex" value="" placeholder="auto" onchange="if(this.value)document.getElementById('leg-chartcolor').value=this.value">
+            </div>
+          </div>
+        </div>
         <div class="form-row">
-          <label>Passengers</label>
-          <input type="number" id="leg-passengers" value="1" min="1" max="9">
+          <label>Budget Airlines</label>
+          <input type="text" id="leg-budget" placeholder="e.g. Jeju Air, Jin Air, T'way Air">
+          <div class="hint">Comma-separated. Used for "Peasant Plane" section in alerts</div>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-ghost" onclick="closeModal('leg-modal')">Cancel</button>
@@ -247,7 +307,9 @@
       list.innerHTML = entries.map(([id, t]) =>
         '<div class="item">' +
           '<div class="item-info">' +
-            '<div class="item-title">' + (t.label || id) + '</div>' +
+            '<div class="item-title">' + (t.icon || '✈️') + ' ' + (t.label || id) +
+              ' <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + (t.color || '#3498DB') + ';vertical-align:middle;margin-left:4px"></span>' +
+            '</div>' +
             '<div class="item-sub">' + id + ' &middot; ' + (t.departureDate || '?') + ' &middot; ' + (t.passengers || 1) + ' pax</div>' +
           '</div>' +
           '<div class="item-actions">' +
@@ -267,6 +329,10 @@
       document.getElementById('trip-subtitle').value = trip ? (trip.subtitle || '') : '';
       document.getElementById('trip-date').value = trip ? (trip.departureDate || '') : '';
       document.getElementById('trip-passengers').value = trip ? (trip.passengers || 1) : 1;
+      document.getElementById('trip-icon').value = trip ? (trip.icon || '') : '';
+      const color = trip ? (trip.color || '#3498DB') : '#3498DB';
+      document.getElementById('trip-color').value = color;
+      document.getElementById('trip-color-hex').value = color;
       document.getElementById('trip-modal').classList.add('active');
     }
 
@@ -283,6 +349,8 @@
         subtitle: document.getElementById('trip-subtitle').value,
         departureDate: document.getElementById('trip-date').value,
         passengers: parseInt(document.getElementById('trip-passengers').value) || 1,
+        icon: document.getElementById('trip-icon').value || '✈️',
+        color: document.getElementById('trip-color-hex').value || '#3498DB',
       };
       try {
         const res = await fetch('/api/admin/trips/' + id, {
@@ -361,6 +429,10 @@
       document.getElementById('leg-nonstop').checked = leg ? !!leg.nonstopOnly : false;
       document.getElementById('leg-trip').value = leg ? (leg.trip || '') : '';
       document.getElementById('leg-passengers').value = leg ? (leg.passengers || 1) : 1;
+      const cc = leg?.chartColor || '';
+      document.getElementById('leg-chartcolor-hex').value = cc;
+      if (cc) document.getElementById('leg-chartcolor').value = cc;
+      document.getElementById('leg-budget').value = leg ? (leg.budgetAirlines || []).join(', ') : '';
       document.getElementById('leg-modal').classList.add('active');
     }
 
@@ -382,6 +454,8 @@
         nonstopOnly: document.getElementById('leg-nonstop').checked,
         trip: document.getElementById('leg-trip').value,
         passengers: parseInt(document.getElementById('leg-passengers').value) || 1,
+        chartColor: document.getElementById('leg-chartcolor-hex').value || '',
+        budgetAirlines: document.getElementById('leg-budget').value,
       };
       try {
         const res = await fetch('/api/admin/legs/' + id, {
@@ -411,11 +485,47 @@
       }
     }
 
+    /* ── Data Management ── */
+
+    async function loadDbStats() {
+      try {
+        const stats = await fetchJSON('/api/admin/db-stats');
+        const container = document.getElementById('db-stats');
+        const oldest = stats.oldest ? new Date(stats.oldest * 1000).toLocaleDateString() : 'N/A';
+        const newest = stats.newest ? new Date(stats.newest * 1000).toLocaleDateString() : 'N/A';
+        container.innerHTML =
+          '<div class="db-stat"><div class="db-stat-label">Snapshots</div><div class="db-stat-value">' + (stats.snapshots || 0).toLocaleString() + '</div></div>' +
+          '<div class="db-stat"><div class="db-stat-label">Alerts</div><div class="db-stat-value">' + (stats.alerts || 0).toLocaleString() + '</div></div>' +
+          '<div class="db-stat"><div class="db-stat-label">Oldest Data</div><div class="db-stat-value" style="font-size:0.9rem">' + oldest + '</div></div>' +
+          '<div class="db-stat"><div class="db-stat-label">Newest Data</div><div class="db-stat-value" style="font-size:0.9rem">' + newest + '</div></div>';
+      } catch {
+        document.getElementById('db-stats').innerHTML = '<div class="empty">Error loading stats</div>';
+      }
+    }
+
+    async function pruneData() {
+      const days = parseInt(document.getElementById('prune-days').value) || 90;
+      if (!confirm('Delete all price snapshots older than ' + days + ' days? This cannot be undone.')) return;
+      try {
+        const res = await fetch('/api/admin/prune', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ retentionDays: days }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        toast('Pruned ' + (data.deleted || 0).toLocaleString() + ' snapshots');
+        await loadDbStats();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    }
+
     /* ── Init ── */
 
     async function loadAll() {
       await loadTrips();
       await loadLegs();
+      await loadDbStats();
     }
 
     loadAll();

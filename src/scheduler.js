@@ -1,7 +1,8 @@
 import cron from 'node-cron';
-import { POLL_INTERVAL_MINUTES, FLIGHT_LEGS } from './config.js';
+import { POLL_INTERVAL_MINUTES, FLIGHT_LEGS, DATA_RETENTION_DAYS } from './config.js';
 import { fetchAllLegs } from './fetcher.js';
 import { evaluateAlerts, sendDailySummary } from './alerts.js';
+import { pruneOldSnapshots } from './db.js';
 import { logger } from './logger.js';
 
 async function pollCycle() {
@@ -37,6 +38,17 @@ export function startScheduler() {
       await sendDailySummary();
     } catch (err) {
       logger.error('Daily summary failed:', err.message);
+    }
+  });
+
+  // Daily data prune at midnight
+  logger.info(`Scheduling daily data prune (retain ${DATA_RETENTION_DAYS} days)`);
+  cron.schedule('0 0 * * *', () => {
+    try {
+      const deleted = pruneOldSnapshots(DATA_RETENTION_DAYS);
+      if (deleted > 0) logger.info(`Pruned ${deleted} snapshots older than ${DATA_RETENTION_DAYS} days`);
+    } catch (err) {
+      logger.error('Data prune failed:', err.message);
     }
   });
 

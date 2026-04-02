@@ -12,8 +12,11 @@ const COLORS = {
   daily_summary: 0x3498DB,
 };
 
-const TRIP_COLORS = { nz: 0x3498DB };
-const TRIP_ICONS = { nz: '✈️' };
+function hexToInt(hex) {
+  return parseInt((hex || '#3498DB').replace('#', ''), 16);
+}
+function tripColor(tripId) { return hexToInt(TRIPS[tripId]?.color); }
+function tripIcon(tripId) { return TRIPS[tripId]?.icon || '✈️'; }
 
 function formatPrice(cents) {
   if (!cents && cents !== 0) return 'N/A';
@@ -170,10 +173,10 @@ function evaluateTripAlerts(tripId, tripResults) {
   const passengers = trip.passengers || 1;
 
   const titles = {
-    alltime_low: `${TRIP_ICONS[tripId] || '✈️'} All-Time Low — ${trip.label}!`,
-    price_drop: `${TRIP_ICONS[tripId] || '✈️'} Price Drop — ${trip.label}`,
-    price_spike: `${TRIP_ICONS[tripId] || '✈️'} Price Increase — ${trip.label}`,
-    below_typical: `${TRIP_ICONS[tripId] || '✈️'} Below Typical — ${trip.label}`,
+    alltime_low: `${tripIcon(tripId)} All-Time Low — ${trip.label}!`,
+    price_drop: `${tripIcon(tripId)} Price Drop — ${trip.label}`,
+    price_spike: `${tripIcon(tripId)} Price Increase — ${trip.label}`,
+    below_typical: `${tripIcon(tripId)} Below Typical — ${trip.label}`,
   };
 
   const perPerson = Math.round(total / passengers);
@@ -184,7 +187,7 @@ function evaluateTripAlerts(tripId, tripResults) {
   return {
     embed: {
       title: titles[topEvent] || `${trip.label} Update`,
-      color: TRIP_COLORS[tripId] || COLORS[topEvent],
+      color: tripColor(tripId) || COLORS[topEvent],
       description: `${priceDesc}\n\n[📋 Book on Google Flights](${multiCityUrl(tripId)})`,
       fields: legFields,
       footer: { text: trip.subtitle },
@@ -337,8 +340,8 @@ export async function sendDailySummary() {
       : formatPrice(total);
 
     embeds.push({
-      title: `${TRIP_ICONS[tripId] || '✈️'} ${trip.label} — ${daysUntil} days out`,
-      color: TRIP_COLORS[tripId] || COLORS.daily_summary,
+      title: `${tripIcon(tripId)} ${trip.label} — ${daysUntil} days out`,
+      color: tripColor(tripId) || COLORS.daily_summary,
       description: `[📋 Book on Google Flights](${multiCityUrl(tripId)})`,
       fields,
       footer: { text: `${trip.subtitle} | Trip total: ${priceText}` },

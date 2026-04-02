@@ -35,10 +35,51 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg-primary);
       color: var(--text-primary);
+      padding: 0;
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    /* === Sidebar + Main Layout === */
+    .page-layout {
+      display: flex;
+      min-height: 100vh;
+    }
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border-color);
+      padding: 20px 16px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.04);
+    }
+    .sidebar h2 {
+      font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--text-muted); margin-bottom: 16px; font-weight: 700;
+    }
+    .main-content {
+      flex: 1;
+      min-width: 0;
       padding: 20px;
       max-width: 1200px;
       margin: 0 auto;
-      line-height: 1.5;
+    }
+    @media (max-width: 900px) {
+      .page-layout { flex-direction: column; }
+      .sidebar {
+        width: 100%; height: auto; position: static;
+        border-right: none; border-bottom: 1px solid var(--border-color);
+        display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start;
+        padding: 16px 20px;
+      }
+      .sidebar h2 { width: 100%; margin-bottom: 8px; }
+      .sidebar-stat { flex: 1; min-width: 120px; }
+      .sidebar-adapter { flex: 1; min-width: 160px; }
+      .main-content { padding: 20px; }
     }
 
     /* === Header === */
@@ -52,8 +93,9 @@
     .subtitle { color: var(--text-secondary); font-size: 0.9rem; }
     .route-segment { font-weight: 600; color: var(--text-primary); }
     .route-arrow { color: var(--base0); margin: 0 4px; }
-    .route-divider { color: var(--base1); margin: 0 8px; }
+    .route-divider { color: var(--base1); margin: 0 12px; font-size: 1.1em; }
     .route-date { color: var(--cyan); font-weight: 600; }
+    #trip-tabs .chart-controls { gap: 10px; }
 
     /* === Trip Total === */
     .trip-total {
@@ -229,50 +271,42 @@
     .alert-message { color: var(--text-primary); font-size: 0.85rem; }
     .alert-time { color: var(--text-muted); font-size: 0.75rem; margin-top: 2px; }
 
-    /* === Stats Section === */
-    .stats-section {
-      background: var(--bg-card); border: 1px solid var(--border-color);
-      border-radius: var(--radius); padding: 24px; margin-bottom: 28px;
-      box-shadow: var(--shadow-sm);
-    }
-    .stats-section h2 {
-      margin-bottom: 16px; font-size: 1.2rem; color: var(--text-primary);
-    }
-    .stats-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-    }
-    .stat-card {
+    /* === Sidebar Stats === */
+    .sidebar-stat {
       background: var(--base3); border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm); padding: 16px; text-align: center;
+      border-radius: var(--radius-sm); padding: 12px; text-align: center;
+      margin-bottom: 12px;
     }
-    .stat-card-header {
-      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
-      color: var(--text-muted); margin-bottom: 8px; font-weight: 600;
+    .sidebar-stat-label {
+      font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--text-muted); margin-bottom: 4px; font-weight: 600;
     }
-    .stat-card-value {
-      font-size: 1.8rem; font-weight: 800; margin-bottom: 4px;
+    .sidebar-stat-value {
+      font-size: 1.4rem; font-weight: 800; line-height: 1.2;
     }
-    .stat-card-sub {
-      font-size: 0.75rem; color: var(--text-secondary);
+    .sidebar-stat-sub {
+      font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px;
     }
-    .stat-bar-row {
-      display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+    .sidebar-divider {
+      border: none; border-top: 1px solid var(--border-color);
+      margin: 14px 0;
     }
-    .stat-bar-label {
-      font-size: 0.82rem; font-weight: 600; color: var(--text-primary);
-      min-width: 80px;
+    .sidebar-adapter {
+      margin-bottom: 14px;
     }
-    .stat-bar-track {
-      flex: 1; height: 10px; background: var(--base2);
-      border-radius: 5px; overflow: hidden;
+    .sidebar-adapter-name {
+      font-size: 0.78rem; font-weight: 700; color: var(--text-primary);
+      margin-bottom: 4px;
     }
-    .stat-bar-fill {
-      height: 100%; border-radius: 5px; transition: width 0.5s ease;
+    .sidebar-bar-track {
+      height: 6px; background: var(--base2); border-radius: 3px;
+      overflow: hidden; margin-bottom: 3px;
     }
-    .stat-bar-count {
-      font-size: 0.78rem; color: var(--text-secondary); min-width: 50px;
-      text-align: right;
+    .sidebar-bar-fill {
+      height: 100%; border-radius: 3px; transition: width 0.5s ease;
+    }
+    .sidebar-adapter-detail {
+      font-size: 0.65rem; color: var(--text-muted); line-height: 1.4;
     }
 
     /* === Misc === */
@@ -286,6 +320,14 @@
   </style>
 </head>
 <body>
+<div class="page-layout">
+
+  <aside class="sidebar">
+    <h2>API Usage</h2>
+    <div id="stats-content"><div class="no-data" style="padding:12px;font-size:0.8rem">Loading...</div></div>
+  </aside>
+
+  <div class="main-content">
 
   <header class="dashboard-header">
     <div class="header-title">
@@ -295,22 +337,10 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </a>
     </div>
-    <p class="subtitle">
-      <span class="route-segment">NYC</span>
-      <span class="route-arrow">&#8594;</span>
-      <span class="route-segment">Auckland</span>
-      <span class="route-arrow">&#8594;</span>
-      <span class="route-segment">Wellington</span>
-      <span class="route-arrow">&#8594;</span>
-      <span class="route-segment">Sydney</span>
-      <span class="route-arrow">&#8594;</span>
-      <span class="route-segment">Melbourne</span>
-      <span class="route-arrow">&#8594;</span>
-      <span class="route-segment">Boston</span>
-      <span class="route-divider">|</span>
-      <span class="route-date">May 2026</span>
-    </p>
+    <p class="subtitle" id="route-header"></p>
   </header>
+
+  <div id="trip-tabs" style="display:none;text-align:center;margin-bottom:20px;"></div>
 
   <div class="trip-total">
     <div class="trip-total-label">Total Trip Estimate</div>
@@ -337,22 +367,19 @@
     <div id="alerts-list"><div class="no-data">No alerts yet</div></div>
   </div>
 
-  <div class="stats-section">
-    <h2>API Usage</h2>
-    <div id="stats-content"><div class="no-data">Loading stats...</div></div>
-  </div>
-
   <div class="refresh-note">Auto-refreshes every 60 seconds</div>
+
+  </div><!-- /.main-content -->
+</div><!-- /.page-layout -->
 
   <script>
     /* ── Config ─────────────────────────────────────── */
 
-    const LEGS = [
-      { id: 'nyc-akl', label: 'NYC → AKL', color: '#268bd2' },
-      { id: 'wlg-syd', label: 'WLG → SYD', color: '#2aa198' },
-      { id: 'syd-mel', label: 'SYD → MEL', color: '#6c71c4' },
-      { id: 'mel-bos', label: 'MEL → BOS', color: '#cb4b16' },
-    ];
+    let LEGS = [];
+    let tripsData = [];
+    let activeTrip = 'all';
+
+    const FALLBACK_COLORS = ['#268bd2','#2aa198','#6c71c4','#cb4b16','#b58900','#d33682','#859900','#dc322f'];
 
     const AIRLINE_DOMAINS = {
       'United': 'united.com',
@@ -371,6 +398,17 @@
       'Korean Air': 'koreanair.com',
       'Japan Airlines': 'jal.co.jp',
       'ANA': 'ana.co.jp',
+      'Asiana Airlines': 'flyasiana.com',
+      'Jeju Air': 'jejuair.net',
+      'Jin Air': 'jinair.com',
+      "T'way Air": 'twayair.com',
+      'Air Busan': 'airbusan.com',
+      'Air Seoul': 'flyairseoul.com',
+      'Air Premia': 'airpremia.com',
+      'Starlux': 'starlux-airlines.com',
+      'Philippine Airlines': 'philippineairlines.com',
+      'China Airlines': 'china-airlines.com',
+      'EVA Air': 'evaair.com',
     };
 
     const PLANE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>';
@@ -432,6 +470,83 @@
       return res.json();
     }
 
+    /* ── Dynamic Config ────────────────────────────── */
+
+    async function loadConfig() {
+      try {
+        const cfg = await fetchJSON('/api/config');
+        tripsData = cfg.trips || [];
+        LEGS = (cfg.legs || []).map((l, i) => ({
+          id: l.id,
+          label: l.label || (l.origins?.[0] + ' → ' + l.destination),
+          color: l.chartColor || FALLBACK_COLORS[i % FALLBACK_COLORS.length],
+          trip: l.trip,
+          origins: l.origins,
+          destination: l.destination,
+          date: l.date,
+          emoji: l.emoji,
+        }));
+        buildRouteHeader();
+        buildTripTabs();
+      } catch (e) {
+        console.error('Failed to load config:', e);
+      }
+    }
+
+    function buildRouteHeader() {
+      const header = document.getElementById('route-header');
+      const trips = activeTrip === 'all' ? tripsData : tripsData.filter(t => t.id === activeTrip);
+      if (!trips.length) { header.innerHTML = ''; return; }
+
+      const parts = trips.map(trip => {
+        const legs = LEGS.filter(l => l.trip === trip.id);
+        if (!legs.length) return '';
+        const airports = [];
+        for (const leg of legs) {
+          if (!airports.length) airports.push(leg.origins?.[0] || '');
+          airports.push(leg.destination);
+        }
+        const routeHtml = airports.map(a => '<span class="route-segment">' + a + '</span>').join('<span class="route-arrow"> → </span>');
+        const dateStr = legs[0]?.date ? ' <span class="route-date">' + legs[0].date + '</span>' : '';
+        return (trip.icon || '✈️') + ' ' + routeHtml + dateStr;
+      });
+      header.innerHTML = parts.join('<span class="route-divider">|</span>');
+    }
+
+    function buildTripTabs() {
+      const container = document.getElementById('trip-tabs');
+      if (tripsData.length < 2) { container.style.display = 'none'; return; }
+      container.style.display = 'block';
+
+      const tabs = [{ id: 'all', label: 'All Trips', color: '#268bd2' }];
+      for (const t of tripsData) tabs.push({ id: t.id, label: (t.icon || '✈️') + ' ' + t.label, color: t.color || '#268bd2' });
+
+      container.innerHTML = '<div class="chart-controls" style="justify-content:center">' +
+        tabs.map(t =>
+          '<button data-trip="' + t.id + '" class="' + (activeTrip === t.id ? 'active' : '') + '" ' +
+          'style="' + (activeTrip === t.id ? 'background:' + t.color + ';border-color:' + t.color + ';color:#fff' : '') + '">' +
+          t.label + '</button>'
+        ).join('') + '</div>';
+
+      container.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          activeTrip = btn.dataset.trip;
+          buildTripTabs();
+          buildRouteHeader();
+          refreshData();
+        });
+      });
+    }
+
+    function getActiveLegs() {
+      if (activeTrip === 'all') return LEGS;
+      return LEGS.filter(l => l.trip === activeTrip);
+    }
+
+    function getActiveLegIds() {
+      return getActiveLegs().map(l => l.id);
+    }
+
     /* ── Load Summary ──────────────────────────────── */
 
     function fmtTimestamp(unix) {
@@ -443,13 +558,27 @@
 
     async function loadSummary() {
       try {
-        const data = await fetchJSON('/api/summary');
+        const url = activeTrip === 'all' ? '/api/summary' : '/api/summary?trip=' + activeTrip;
+        const data = await fetchJSON(url);
+        const trip = activeTrip !== 'all' ? tripsData.find(t => t.id === activeTrip) : null;
+        const passengers = trip?.passengers || 1;
+
         document.getElementById('trip-total').textContent = fmt(data.totalCurrent);
-        if (data.totalAlltime) {
-          document.getElementById('trip-alltime').textContent =
-            'All-time best total: ' + fmt(data.totalAlltime);
+
+        const label = document.querySelector('.trip-total-label');
+        if (trip) {
+          label.textContent = (trip.icon || '✈️') + ' ' + trip.label + ' Estimate';
+        } else {
+          label.textContent = 'Total Trip Estimate';
         }
-        // Show last updated timestamp from most recent price snapshot
+
+        if (data.totalAlltime) {
+          let alttimeText = 'All-time best total: ' + fmt(data.totalAlltime);
+          if (passengers > 1) {
+            alttimeText += ' (' + passengers + ' pax · ' + fmt(Math.round(data.totalCurrent / passengers)) + '/person)';
+          }
+          document.getElementById('trip-alltime').textContent = alttimeText;
+        }
         if (data.best && data.best.length) {
           const latestTs = Math.max(...data.best.map(b => b.timestamp || 0));
           if (latestTs) {
@@ -466,7 +595,9 @@
 
     async function loadCards() {
       try {
-        const prices = await fetchJSON('/api/prices');
+        const allPrices = await fetchJSON('/api/prices');
+        const ids = getActiveLegIds();
+        const prices = allPrices.filter(p => ids.includes(p.leg_id));
         const container = document.getElementById('leg-cards');
         if (!prices.length) {
           container.innerHTML = '<div class="no-data">Waiting for first price data...</div>';
@@ -525,7 +656,7 @@
       });
 
       const datasets = [];
-      for (const leg of LEGS) {
+      for (const leg of getActiveLegs()) {
         try {
           const history = await fetchJSON('/api/history/' + leg.id + '?range=' + range);
           if (!history.length) continue;
@@ -620,7 +751,7 @@
       }
     }
 
-    /* ── Load Stats ────────────────────────────────── */
+    /* ── Load Stats (sidebar) ─────────────────────── */
 
     async function loadStats() {
       try {
@@ -632,46 +763,39 @@
 
         const adapterColors = { serpapi: '#268bd2', amadeus: '#2aa198', rapidapi: '#6c71c4' };
         const adapterLabels = { serpapi: 'SerpAPI', amadeus: 'Amadeus', rapidapi: 'RapidAPI' };
-
-        // Session stats cards
         const adapters = ['serpapi', 'amadeus', 'rapidapi'];
         const totalCalls = adapters.reduce((s, a) => s + (session[a]?.calls || 0), 0);
         const totalSuccess = adapters.reduce((s, a) => s + (session[a]?.successes || 0), 0);
-
-        // DB totals per adapter
+        const totalSnaps = dbRows.reduce((s, r) => s + (r.total_snapshots || 0), 0);
+        const rapidSession = session.rapidapi || {};
         const dbMap = {};
         for (const row of dbRows) { dbMap[row.data_source] = row; }
 
-        let html = '<div class="stats-grid">';
+        let html = '';
 
-        // Summary card
-        html += '<div class="stat-card">' +
-          '<div class="stat-card-header">This Session</div>' +
-          '<div class="stat-card-value" style="color:var(--blue)">' + totalCalls + '</div>' +
-          '<div class="stat-card-sub">' + totalSuccess + ' successful</div>' +
+        // Session calls
+        html += '<div class="sidebar-stat">' +
+          '<div class="sidebar-stat-label">Session Calls</div>' +
+          '<div class="sidebar-stat-value" style="color:var(--blue)">' + totalCalls + '</div>' +
+          '<div class="sidebar-stat-sub">' + totalSuccess + ' successful</div>' +
         '</div>';
 
-        // Total snapshots card
-        const totalSnaps = dbRows.reduce((s, r) => s + (r.total_snapshots || 0), 0);
-        html += '<div class="stat-card">' +
-          '<div class="stat-card-header">Total Snapshots</div>' +
-          '<div class="stat-card-value" style="color:var(--cyan)">' + totalSnaps.toLocaleString() + '</div>' +
-          '<div class="stat-card-sub">across all adapters</div>' +
+        // Total snapshots
+        html += '<div class="sidebar-stat">' +
+          '<div class="sidebar-stat-label">Total Snapshots</div>' +
+          '<div class="sidebar-stat-value" style="color:var(--cyan)">' + totalSnaps.toLocaleString() + '</div>' +
         '</div>';
 
-        // RapidAPI quota card
-        const rapidSession = session.rapidapi || {};
-        html += '<div class="stat-card">' +
-          '<div class="stat-card-header">RapidAPI Quota</div>' +
-          '<div class="stat-card-value" style="color:var(--violet)">' + rapidSession.calls + '/' + rapidLimit + '</div>' +
-          '<div class="stat-card-sub">this session (monthly limit)</div>' +
+        // RapidAPI quota
+        html += '<div class="sidebar-stat">' +
+          '<div class="sidebar-stat-label">RapidAPI Quota</div>' +
+          '<div class="sidebar-stat-value" style="color:var(--violet)">' + rapidSession.calls + '<span style="font-size:0.8rem;font-weight:500;color:var(--text-muted)">/' + rapidLimit + '</span></div>' +
         '</div>';
 
-        html += '</div>';
+        html += '<hr class="sidebar-divider">';
 
-        // Per-adapter bars
+        // Per-adapter breakdown
         const maxSnaps = Math.max(...dbRows.map(r => r.total_snapshots), 1);
-        html += '<div style="margin-top:20px">';
         for (const a of adapters) {
           const db = dbMap[a] || {};
           const sess = session[a] || {};
@@ -680,27 +804,30 @@
           const color = adapterColors[a];
           const lastSeen = db.last_seen ? timeAgo(db.last_seen) : 'never';
 
-          html += '<div class="stat-bar-row">' +
-            '<span class="stat-bar-label">' + (adapterLabels[a] || a) + '</span>' +
-            '<div class="stat-bar-track"><div class="stat-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
-            '<span class="stat-bar-count">' + count.toLocaleString() + '</span>' +
-          '</div>';
-          html += '<div style="font-size:0.72rem;color:var(--text-muted);margin-left:90px;margin-bottom:12px">' +
-            'Session: ' + (sess.calls || 0) + ' calls (' + (sess.successes || 0) + ' ok, ' + (sess.failures || 0) + ' fail) · Last: ' + lastSeen +
+          html += '<div class="sidebar-adapter">' +
+            '<div class="sidebar-adapter-name">' + (adapterLabels[a]) + ' <span style="font-weight:400;color:var(--text-muted)">' + count.toLocaleString() + '</span></div>' +
+            '<div class="sidebar-bar-track"><div class="sidebar-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
+            '<div class="sidebar-adapter-detail">' +
+              (sess.calls || 0) + ' calls &middot; ' + (sess.failures || 0) + ' fail<br>Last: ' + lastSeen +
+            '</div>' +
           '</div>';
         }
-        html += '</div>';
 
         container.innerHTML = html;
       } catch {
-        document.getElementById('stats-content').innerHTML = '<div class="no-data">Error loading stats</div>';
+        document.getElementById('stats-content').innerHTML = '<div class="no-data" style="padding:12px;font-size:0.8rem">Error loading</div>';
       }
     }
 
     /* ── Refresh & Init ────────────────────────────── */
 
-    async function refresh() {
+    async function refreshData() {
       await Promise.all([loadSummary(), loadCards(), loadChart(currentRange), loadAlerts(), loadStats()]);
+    }
+
+    async function refresh() {
+      await loadConfig();
+      await refreshData();
     }
 
     document.querySelectorAll('.chart-controls button').forEach(btn => {
